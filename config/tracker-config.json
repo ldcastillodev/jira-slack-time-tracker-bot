@@ -1,0 +1,19 @@
+{
+  "jira": {
+    "boards": ["MP"],
+    "genericTickets": [
+      { "key": "MP-100", "label": "Client requested meetings" },
+      { "key": "MP-101", "label": "Others" }
+    ]
+  },
+  "tracking": {
+    "dailyTarget": 8,
+    "weeklyTarget": 40,
+    "timezone": "America/New_York",
+    "cronHourET": 16
+  },
+  "users": [
+    "john.doe@applydigital.com",
+    "jane.smith@applydigital.com"
+  ]
+}

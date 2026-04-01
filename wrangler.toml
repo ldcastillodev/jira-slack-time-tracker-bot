@@ -1,0 +1,25 @@
+name = "jira-time-tracker-bot"
+main = "src/index.ts"
+compatibility_date = "2026-03-31"
+compatibility_flags = ["nodejs_compat"]
+
+# KV namespace for caching Slack user IDs and Jira accountId mappings
+[[kv_namespaces]]
+binding = "CACHE"
+id = "<RUN: wrangler kv namespace create CACHE>"
+preview_id = "<RUN: wrangler kv namespace create CACHE --preview>"
+
+# Cron triggers: dual UTC times to cover EDT (UTC-4) and EST (UTC-5) DST transitions
+# The handler checks if it's actually 4PM ET before executing.
+[triggers]
+crons = ["0 20 * * 1-5", "0 21 * * 1-5"]
+
+# Non-secret variables
+[vars]
+JIRA_BASE_URL = "https://applydigital.atlassian.net"
+
+# Secrets (set via `wrangler secret put <NAME>`):
+# - JIRA_API_TOKEN
+# - JIRA_USER_EMAIL
+# - SLACK_BOT_TOKEN
+# - SLACK_SIGNING_SECRET
