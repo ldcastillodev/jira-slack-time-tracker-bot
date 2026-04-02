@@ -16,10 +16,15 @@ export interface GenericTicket {
   label: string;
 }
 
+interface ProjectComponent {
+  name: string;
+}
+
 export interface TrackerConfig {
   jira: {
     boards: string[];
     genericTickets: GenericTicket[];
+    projectComponents: ProjectComponent[];
   };
   tracking: {
     dailyTarget: number;
@@ -95,6 +100,11 @@ export interface JiraWorklogResponse {
 }
 
 // ─── Aggregation Types ───
+
+export interface SlotEntry {
+  ticketKey: string;
+  hours: number;
+}
 
 export interface TicketHours {
   key: string;

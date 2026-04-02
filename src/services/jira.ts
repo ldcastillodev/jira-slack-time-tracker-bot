@@ -1,3 +1,4 @@
+import { loadConfig } from "../config.ts";
 import type {
   Env,
   JiraSearchResponse,
@@ -34,8 +35,10 @@ export async function searchIssuesWithWorklogs(
   boards: string[],
 ): Promise<JiraIssue[]> {
   const boardList = boards.map((b) => `"${b}"`).join(", ");
-  // fetch issues that are in open sprints, not done/backlog/ready,
-  const jql = `project in (${boardList}) AND Sprint in openSprints() AND status != "Done" AND status != "Backlog" AND status != "Ready for Pickup"`;
+  const componentList = loadConfig().jira.projectComponents.map((c) => `"${c.name}"`).join(", ");
+  // fetch issues that are in project components, to ensure we get all relevant worklogs for the day.
+  const jql = `project in (${boardList}) AND component in (${componentList})`;
+
   const fields = [
     "summary", "status", "created", "updated", "assignee", "labels", "components", "worklog"
   ];

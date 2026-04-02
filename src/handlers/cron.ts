@@ -4,7 +4,7 @@ import { getTodayET, getCurrentHourET, isFriday, getWeekBoundaries } from "../ut
 import { searchIssuesWithWorklogs, buildAccountIdEmailMap } from "../services/jira.ts";
 import { lookupUserByEmail, sendDirectMessage } from "../services/slack.ts";
 import { aggregateUserHours, aggregateWeeklyHours } from "../services/aggregator.ts";
-import { buildDailyMessage, buildFridayMessage } from "../builders/message-builder.ts";
+import { buildDailyMessage, buildWeeklyMessage } from "../builders/message-builder.ts";
 
 /**
  * Cron handler: runs on dual UTC triggers (20:00 and 21:00) Mon-Fri.
@@ -26,7 +26,7 @@ export async function handleScheduled(env: Env): Promise<void> {
   const friday = isFriday(new Date());
   const { monday, friday: weekFriday } = getWeekBoundaries(new Date());
 
-  const issues = await searchIssuesWithWorklogs(env, config.jira.boards)
+  const issues = await searchIssuesWithWorklogs(env, config.jira.boards);
   console.log(`Fetched ${issues.length} issues with worklogs`);
 
   // Build accountId → email mapping
@@ -62,12 +62,12 @@ export async function handleScheduled(env: Env): Promise<void> {
     if (friday && weeklySummaries) {
       const weeklySummary = weeklySummaries.get(lowerEmail);
       if (weeklySummary) {
-        blocks = buildFridayMessage(dailySummary, weeklySummary, config);
+        blocks = buildWeeklyMessage(dailySummary, weeklySummary, config, today);
       } else {
-        blocks = buildDailyMessage(dailySummary, config);
+        blocks = buildDailyMessage(dailySummary, config, today);
       }
     } else {
-      blocks = buildDailyMessage(dailySummary, config);
+      blocks = buildDailyMessage(dailySummary, config, today);
     }
 
     const fallbackText = `Reporte de horas: ${dailySummary.totalHours.toFixed(1)}h / ${config.tracking.dailyTarget}h`;
@@ -75,9 +75,9 @@ export async function handleScheduled(env: Env): Promise<void> {
 
     if (sent) {
       sentCount++;
-      console.log(`✅ Sent to ${email} (${dailySummary.totalHours.toFixed(1)}h today)`);
+      console.log(`Sent to ${email} (${dailySummary.totalHours.toFixed(1)}h today)`);
     } else {
-      console.error(`❌ Failed to send to ${email}`);
+      console.error(`Failed to send to ${email}`);
     }
   }
 
