@@ -26,11 +26,7 @@ export async function handleScheduled(env: Env): Promise<void> {
   const friday = isFriday(new Date());
   const { monday, friday: weekFriday } = getWeekBoundaries(new Date());
 
-  // Fetch issues with worklogs — for today (and full week if Friday)
-  const dateFrom = friday ? monday : today;
-  const dateTo = friday ? weekFriday : today;
-
-  const issues = await searchIssuesWithWorklogs(env, config.jira.boards, dateFrom, dateTo);
+  const issues = await searchIssuesWithWorklogs(env, config.jira.boards)
   console.log(`Fetched ${issues.length} issues with worklogs`);
 
   // Build accountId → email mapping

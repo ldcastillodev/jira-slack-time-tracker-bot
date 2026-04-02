@@ -2,8 +2,7 @@
   "jira": {
     "boards": ["MP"],
     "genericTickets": [
-      { "key": "MP-100", "label": "Client requested meetings" },
-      { "key": "MP-101", "label": "Others" }
+      { "key": "MP-2126", "label": "[MgS-Hours] Others MgS" }
     ]
   },
   "tracking": {
@@ -13,7 +12,6 @@
     "cronHourET": 16
   },
   "users": [
-    "john.doe@applydigital.com",
-    "jane.smith@applydigital.com"
+    "luis.castillo@applydigital.com"
   ]
 }

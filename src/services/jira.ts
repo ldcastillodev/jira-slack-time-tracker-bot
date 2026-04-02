@@ -7,6 +7,7 @@ import type {
   JiraRawWorklog,
   JiraWorklogResponse,
 } from "../types/index.ts";
+import { getTodayET } from "../utils/date.ts";
 
 // ─── Helpers ───
 
@@ -16,9 +17,9 @@ function authHeader(env: Env): string {
 
 function baseHeaders(env: Env): Record<string, string> {
   return {
-    Authorization: authHeader(env),
+    "Authorization": authHeader(env),
     "Content-Type": "application/json",
-    Accept: "application/json",
+    "Accept": "application/json",
   };
 }
 
@@ -31,12 +32,13 @@ function baseHeaders(env: Env): Record<string, string> {
 export async function searchIssuesWithWorklogs(
   env: Env,
   boards: string[],
-  dateFrom: string,
-  dateTo: string
 ): Promise<JiraIssue[]> {
   const boardList = boards.map((b) => `"${b}"`).join(", ");
-  const jql = `project in (${boardList}) AND worklogDate >= "${dateFrom}" AND worklogDate <= "${dateTo}"`;
-  const fields = ["summary", "status", "assignee", "worklog"];
+  // fetch issues that are in open sprints, not done/backlog/ready,
+  const jql = `project in (${boardList}) AND Sprint in openSprints() AND status != "Done" AND status != "Backlog" AND status != "Ready for Pickup"`;
+  const fields = [
+    "summary", "status", "created", "updated", "assignee", "labels", "components", "worklog"
+  ];
 
   const allIssues: JiraSearchIssue[] = [];
   let nextPageToken: string | undefined;
@@ -46,7 +48,6 @@ export async function searchIssuesWithWorklogs(
       jql,
       maxResults: 100,
       fields,
-      validation: "strict",
     };
     if (nextPageToken) {
       body.nextPageToken = nextPageToken;
@@ -105,7 +106,7 @@ async function resolveWorklogs(env: Env, issue: JiraSearchIssue): Promise<JiraWo
 async function fetchAllWorklogsForIssue(
   env: Env,
   issueKey: string,
-  issueSummary: string
+  issueSummary: string,
 ): Promise<JiraWorklog[]> {
   const all: JiraWorklog[] = [];
   let startAt = 0;
@@ -123,7 +124,16 @@ async function fetchAllWorklogsForIssue(
     }
 
     const data = (await resp.json()) as JiraWorklogResponse;
-    all.push(...data.worklogs.map((w) => mapRawWorklog(w, issueKey, issueSummary)));
+
+    // 1. Filter worklogs by targetDate (using startsWith to avoid format and timezone issues)
+    const dailyWorklogs = data.worklogs.filter((w) => {
+      // Jira returns the 'started' field in this ISO format: "2026-04-01T12:00:00.000+0000"
+      // Using startsWith is the fastest and safest way to filter by day.
+      return w.started.startsWith(getTodayET());
+    });
+
+    // 2. Map and insert only those that passed the filter
+    all.push(...dailyWorklogs.map((w) => mapRawWorklog(w, issueKey, issueSummary)));
 
     if (startAt + data.maxResults >= data.total) break;
     startAt += data.maxResults;
