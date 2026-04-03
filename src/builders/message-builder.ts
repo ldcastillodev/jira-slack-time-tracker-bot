@@ -71,11 +71,14 @@ function buildHoursBreakdown(summary: UserHoursSummary, dailyTarget: number): Sl
   return blocks;
 }
 
-// ─── Scenario A: Interactive (under daily target) ───
+// ─── Scenario A: Interactive (under daily target) — 3 pre-rendered slots ───
+
+const SLOT_COUNT = 3;
 
 function buildInteractiveSection(
   summary: UserHoursSummary,
-  config: TrackerConfig
+  config: TrackerConfig,
+  targetDate: string
 ): SlackBlock[] {
   const blocks: SlackBlock[] = [];
   const remaining = config.tracking.dailyTarget - summary.totalHours;
@@ -85,15 +88,14 @@ function buildInteractiveSection(
     type: "section",
     text: {
       type: "mrkdwn",
-      text: `🔔 Te faltan *${remaining.toFixed(1)}h* para llegar a ${config.tracking.dailyTarget}h. ¡Carga tus horas directamente desde aquí!`,
+      text: `🔔 Te faltan *${remaining.toFixed(1)}h* para llegar a ${config.tracking.dailyTarget}h. ¡Carga tus horas directamente desde aquí!\n_Puedes usar hasta ${SLOT_COUNT} ranuras. Las que dejes vacías serán ignoradas._`,
     },
   });
 
-  // Ticket selector options: user's assigned tickets + generic tickets
+  // Build ticket options (shared across all slots)
   const ticketOptions: SlackOption[] = [];
   const seenKeys = new Set<string>();
 
-  // Add generic tickets first
   for (const gt of config.jira.genericTickets) {
     if (!seenKeys.has(gt.key)) {
       ticketOptions.push({
@@ -104,7 +106,6 @@ function buildInteractiveSection(
     }
   }
 
-  // Add user's assigned tickets
   for (const key of summary.assignedTicketKeys) {
     if (!seenKeys.has(key)) {
       const ticket = summary.tickets.find((t) => t.key === key);
@@ -117,7 +118,6 @@ function buildInteractiveSection(
     }
   }
 
-  // Also include tickets with worklogs today that aren't already in the list
   for (const t of summary.tickets) {
     if (!seenKeys.has(t.key)) {
       ticketOptions.push({
@@ -128,7 +128,7 @@ function buildInteractiveSection(
     }
   }
 
-  // Hours selector: 0.5 increments up to remaining hours (max 8h)
+  // Hours options (shared across all slots)
   const hoursOptions: SlackOption[] = [];
   const maxHours = Math.min(remaining, config.tracking.dailyTarget);
   for (let h = 0.5; h <= maxHours; h += 0.5) {
@@ -138,14 +138,13 @@ function buildInteractiveSection(
     });
   }
 
-  // Ensure we have at least one option for each selector
+  // Fallback options
   if (ticketOptions.length === 0) {
     ticketOptions.push({
       text: { type: "plain_text", text: "No hay tickets disponibles", emoji: true },
       value: "none",
     });
   }
-
   if (hoursOptions.length === 0) {
     hoursOptions.push({
       text: { type: "plain_text", text: "0.5h", emoji: true },
@@ -153,33 +152,40 @@ function buildInteractiveSection(
     });
   }
 
-  // Ticket dropdown
-  blocks.push({
-    type: "section",
-    block_id: "ticket_block",
-    text: { type: "mrkdwn", text: "*Selecciona un ticket:*" },
-    accessory: {
-      type: "static_select",
-      action_id: "select_ticket",
-      placeholder: { type: "plain_text", text: "Elegir ticket...", emoji: true },
-      options: ticketOptions,
-    },
-  });
+  // Render 3 slots
+  for (let i = 0; i < SLOT_COUNT; i++) {
+    blocks.push({ type: "divider" });
+    blocks.push({
+      type: "section",
+      text: { type: "mrkdwn", text: `📝 *Ranura ${i + 1}*` },
+    });
 
-  // Hours dropdown
-  blocks.push({
-    type: "section",
-    block_id: "hours_block",
-    text: { type: "mrkdwn", text: "*Selecciona las horas:*" },
-    accessory: {
-      type: "static_select",
-      action_id: "select_hours",
-      placeholder: { type: "plain_text", text: "Elegir horas...", emoji: true },
-      options: hoursOptions,
-    },
-  });
+    blocks.push({
+      type: "section",
+      block_id: `ticket_block_${i}`,
+      text: { type: "mrkdwn", text: "*Ticket:*" },
+      accessory: {
+        type: "static_select",
+        action_id: `select_ticket_${i}`,
+        placeholder: { type: "plain_text", text: "Elegir ticket...", emoji: true },
+        options: ticketOptions,
+      },
+    });
 
-  // Submit button
+    blocks.push({
+      type: "section",
+      block_id: `hours_block_${i}`,
+      text: { type: "mrkdwn", text: "*Horas:*" },
+      accessory: {
+        type: "static_select",
+        action_id: `select_hours_${i}`,
+        placeholder: { type: "plain_text", text: "Elegir horas...", emoji: true },
+        options: hoursOptions,
+      },
+    });
+  }
+
+  // Single submit button with targetDate encoded in value
   blocks.push({
     type: "actions",
     block_id: "submit_block",
@@ -189,7 +195,7 @@ function buildInteractiveSection(
         action_id: "submit_hours",
         text: { type: "plain_text", text: "✅ Cargar horas", emoji: true },
         style: "primary",
-        value: "submit",
+        value: targetDate,
       },
     ],
   });
@@ -197,7 +203,7 @@ function buildInteractiveSection(
   return blocks;
 }
 
-// ─── Friday: Weekly Summary ───
+// ─── Weekly Summary ───
 
 function buildWeeklySummaryBlocks(
   weekly: WeeklyBreakdown,
@@ -229,7 +235,7 @@ function buildWeeklySummaryBlocks(
     if (day.tickets.length > 0) {
       dayBreakdown += "\n";
       for (const t of day.tickets) {
-        dayBreakdown += `      • \`${t.key}\` — ${t.hours.toFixed(1)}h\n`;
+        dayBreakdown += `      • \`${t.key}\` \`(${t.summary})\` — ${t.hours.toFixed(1)}h\n`;
       }
     } else {
       dayBreakdown += " — _Sin horas_\n";
@@ -247,18 +253,21 @@ function buildWeeklySummaryBlocks(
 // ─── Confirmation Message (after worklog submission) ───
 
 export function buildConfirmationMessage(
-  ticketKey: string,
-  hoursAdded: number,
+  entries: { ticketKey: string; hours: number }[],
   updatedSummary: UserHoursSummary,
   dailyTarget: number
 ): SlackBlock[] {
   const blocks: SlackBlock[] = [];
 
+  const lines = entries
+    .map((e) => `• *${e.hours.toFixed(1)}h* en \`${e.ticketKey}\``)
+    .join("\n");
+
   blocks.push({
     type: "section",
     text: {
       type: "mrkdwn",
-      text: `✅ *¡Horas cargadas exitosamente!*\nSe registraron *${hoursAdded.toFixed(1)}h* en \`${ticketKey}\`.`,
+      text: `✅ *¡Horas cargadas exitosamente!*\n${lines}`,
     },
   });
 
@@ -269,10 +278,8 @@ export function buildConfirmationMessage(
   // Skip the header from the updated breakdown (first block)
   blocks.push(...updatedBlocks.slice(1));
 
-  // If still under target, add interactive section again
+  // If still under target, inform user
   if (updatedSummary.totalHours < dailyTarget) {
-    // We don't add the interactive section here because config isn't available.
-    // The handler will add it.
     blocks.push({ type: "divider" });
     blocks.push({
       type: "section",
@@ -295,28 +302,26 @@ export function buildConfirmationMessage(
  */
 export function buildDailyMessage(
   summary: UserHoursSummary,
-  config: TrackerConfig
+  config: TrackerConfig,
+  targetDate: string
 ): SlackBlock[] {
   const blocks = buildHoursBreakdown(summary, config.tracking.dailyTarget);
 
   if (summary.totalHours < config.tracking.dailyTarget) {
-    blocks.push(...buildInteractiveSection(summary, config));
+    blocks.push(...buildInteractiveSection(summary, config, targetDate));
   }
 
   return blocks;
 }
 
 /**
- * Builds the Friday message: daily report + weekly summary.
+ * Builds the weekly message: weekly summary.
  */
-export function buildFridayMessage(
-  dailySummary: UserHoursSummary,
+export function buildWeeklyMessage(
   weeklySummary: WeeklyBreakdown,
-  config: TrackerConfig
+  config: TrackerConfig,
 ): SlackBlock[] {
-  const blocks = buildDailyMessage(dailySummary, config);
-  blocks.push(...buildWeeklySummaryBlocks(weeklySummary, config.tracking.weeklyTarget));
-  return blocks;
+  return [...buildWeeklySummaryBlocks(weeklySummary, config.tracking.weeklyTarget)];
 }
 
 // ─── Helpers ───

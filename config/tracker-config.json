@@ -1,27 +1,49 @@
 {
-  "jira": {
-    "boards": ["MP"],
-    "genericTickets": [
-      { "key": "MP-2126", "label": "[MgS-Hours] Others MgS" },
-      { "key": "MP-2980", "label": "[MgS-Hours] Others Apply hours" }
-    ],
-    "projectComponents": [
-      { "name": "Tishman Studio"},
-      { "name": "MgS-Black & Veatch"},
-      { "name": "MgS-Star Trek"},
-      { "name": "Tishman-Corporate"},
-      { "name": "Kraft Heinz - AFH"},
-      { "name": "MgS Hours - Others MgS (NB)"},
-      { "name": "MgS Hours - Others Apply (NB)"}
-    ]
-  },
-  "tracking": {
-    "dailyTarget": 8,
-    "weeklyTarget": 40,
-    "timezone": "America/New_York",
-    "cronHourET": 16
-  },
-  "users": [
-    "luis.castillo@applydigital.com"
-  ]
+	"jira": {
+		"boards": [
+			"MP"
+		],
+		"genericTickets": [
+			{
+				"key": "MP-2126",
+				"label": "[MgS-Hours] Others MgS"
+			},
+			{
+				"key": "MP-2980",
+				"label": "[MgS-Hours] Others Apply hours"
+			}
+		],
+		"projectComponents": [
+			{
+				"name": "Tishman Studio"
+			},
+			{
+				"name": "MgS-Black & Veatch"
+			},
+			{
+				"name": "MgS-Star Trek"
+			},
+			{
+				"name": "Tishman-Corporate"
+			},
+			{
+				"name": "Kraft Heinz - AFH"
+			},
+			{
+				"name": "MgS Hours - Others MgS (NB)"
+			},
+			{
+				"name": "MgS Hours - Others Apply (NB)"
+			}
+		]
+	},
+	"tracking": {
+		"dailyTarget": 8,
+		"weeklyTarget": 40,
+		"timezone": "America/New_York",
+		"cronHourET": 16
+	},
+	"users": [
+		"luis.castillo@applydigital.com"
+	]
 }

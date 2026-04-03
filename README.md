@@ -12,7 +12,7 @@ Todos los días de lunes a viernes a las **4:00 PM ET**, el bot:
 
 | Escenario | Comportamiento |
 |-----------|---------------|
-| **< 8h cargadas** | Muestra el desglose + un menú interactivo para cargar horas directamente desde Slack (intervalos de 0.5h). Valida que no se supere el límite diario. |
+| **< 8h cargadas** | Muestra el desglose + **3 ranuras interactivas** para cargar horas en múltiples tickets a la vez (intervalos de 0.5h). Valida duplicados, datos parciales, límite diario y datos obsoletos contra Jira en tiempo real. |
 | **= 8h cargadas** | Muestra solo el desglose de horas como confirmación. Sin opciones interactivas. |
 | **Viernes** | Además del reporte diario, incluye un resumen semanal con el total vs. el objetivo de 40h y el desglose día por día. |
 
@@ -28,14 +28,16 @@ Todos los días de lunes a viernes a las **4:00 PM ET**, el bot:
 │  │  Cron    │───▶│ Jira API: fetch worklogs    │    │
 │  │ 4PM ET   │    │ Aggregate per user           │    │
 │  │ Mon-Fri  │    │ Build Block Kit message      │    │
+│  │          │    │ (3 ranuras + targetDate)     │    │
 │  │          │───▶│ Slack API: send DM           │    │
 │  └──────────┘    └─────────────────────────────┘    │
 │                                                     │
 │  ┌──────────┐    ┌─────────────────────────────┐    │
 │  │  POST    │───▶│ Verify Slack signature       │    │
-│  │ /slack/  │    │ Re-validate hours from Jira  │    │
-│  │ interact │    │ POST worklog to Jira         │    │
-│  │          │───▶│ Update Slack message          │    │
+│  │ /slack/  │    │ Validate targetDate + week   │    │
+│  │ interact │    │ Parse 3 slots, check dupes   │    │
+│  │          │    │ Re-fetch Jira (stale guard)  │    │
+│  │          │───▶│ POST worklogs, update msg    │    │
 │  └──────────┘    └─────────────────────────────┘    │
 │                                                     │
 │  ┌──────────┐                                       │
@@ -44,6 +46,38 @@ Todos los días de lunes a viernes a las **4:00 PM ET**, el bot:
 │  └──────────┘                                       │
 └─────────────────────────────────────────────────────┘
 ```
+
+---
+
+## Carga Múltiple de Horas (3 Ranuras)
+
+### Interfaz
+
+Cuando un usuario tiene menos de 8h cargadas, el mensaje de Slack renderiza **3 ranuras (slots)** pre-generadas. Cada ranura contiene:
+- Un `static_select` para elegir un ticket (`ticket_block_0..2` / `select_ticket_0..2`)
+- Un `static_select` para elegir horas (`hours_block_0..2` / `select_hours_0..2`)
+
+Un único botón **"✅ Cargar horas"** al final envía las 3 ranuras juntas. El usuario puede usar 1, 2 o las 3 ranuras.
+
+### Codificación de `targetDate`
+
+El campo `value` del botón Submit contiene la fecha objetivo (ej: `2026-04-02`) para la que se generó la alerta. Esto permite:
+- Cargar horas en **la fecha correcta** aunque el usuario haga clic un día después.
+- **Rechazar** la carga si la fecha actual ya no pertenece a la misma semana calendario ISO (Lunes–Domingo).
+
+### Reglas de Validación (Backend)
+
+Al recibir el submit, el backend ejecuta esta cadena de validaciones en orden:
+
+| # | Validación | Comportamiento si falla |
+|---|-----------|------------------------|
+| 1 | **Semana calendario** — `targetDate` debe estar en la misma semana ISO que la fecha actual (ET) | Reemplaza el mensaje con aviso de período expirado |
+| 2 | **Datos parciales** — Cada ranura debe tener ambos campos (ticket + horas) o estar vacía | Error indicando qué ranura(s) están incompletas |
+| 3 | **Al menos 1 ranura** — Debe haber mínimo una ranura completa | Error solicitando completar al menos una |
+| 4 | **Tickets duplicados** — No se permite el mismo ticket en más de una ranura | Error indicando la duplicación |
+| 5 | **Suma vs. límite** — El total enviado no debe exceder `dailyTarget` (8h) | Error con el total enviado |
+| 6 | **Stale-data guard** — Se re-fetcha Jira para obtener las horas actuales reales. `horasActuales + totalEnviado ≤ dailyTarget` | Reemplaza mensaje con saldo real actualizado y nuevas ranuras interactivas |
+| 7 | **POST worklogs** — Se envían los worklogs uno por uno | Si alguno falla, se reporta cuál y los exitosos se confirman |
 
 ---
 

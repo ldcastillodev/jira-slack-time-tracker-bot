@@ -83,3 +83,24 @@ export function toJiraStartedFormat(dateStr: string): string {
 export function dateStringToEpochMs(dateStr: string): number {
   return new Date(dateStr + "T00:00:00Z").getTime();
 }
+
+/**
+ * Returns true if two yyyy-MM-dd date strings fall within the same
+ * ISO calendar week (Monday–Sunday).
+ */
+export function isSameCalendarWeek(dateA: string, dateB: string): boolean {
+  const getISOWeek = (str: string): { year: number; week: number } => {
+    const [y, m, d] = str.split("-").map(Number);
+    const date = new Date(Date.UTC(y, m - 1, d));
+    // Adjust to nearest Thursday (ISO week algorithm)
+    const dayOfWeek = date.getUTCDay() || 7; // Mon=1 … Sun=7
+    date.setUTCDate(date.getUTCDate() + 4 - dayOfWeek);
+    const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+    const week = Math.ceil(((date.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+    return { year: date.getUTCFullYear(), week };
+  };
+
+  const a = getISOWeek(dateA);
+  const b = getISOWeek(dateB);
+  return a.year === b.year && a.week === b.week;
+}

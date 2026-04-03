@@ -73,13 +73,14 @@ export async function sendDirectMessage(
 export async function updateMessageViaResponseUrl(
   responseUrl: string,
   blocks: SlackBlock[],
-  text: string
+  text: string,
+  replaceOriginalMessage: boolean
 ): Promise<void> {
   await fetch(responseUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      replace_original: true,
+      replace_original: replaceOriginalMessage,
       response_type: "ephemeral",
       text,
       blocks,

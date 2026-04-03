@@ -1,6 +1,6 @@
-import type { Env, SlackInteractionPayload } from "../types/index.ts";
+import type { Env, SlackInteractionPayload, SlotEntry } from "../types/index.ts";
 import { verifySlackSignature } from "../utils/crypto.ts";
-import { getTodayET } from "../utils/date.ts";
+import { getTodayET, isSameCalendarWeek } from "../utils/date.ts";
 import { loadConfig } from "../config.ts";
 import {
   searchIssuesWithWorklogs,
@@ -9,7 +9,7 @@ import {
 } from "../services/jira.ts";
 import { updateMessageViaResponseUrl } from "../services/slack.ts";
 import { aggregateUserHours } from "../services/aggregator.ts";
-import { buildConfirmationMessage } from "../builders/message-builder.ts";
+import { buildConfirmationMessage, buildDailyMessage } from "../builders/message-builder.ts";
 
 /**
  * Handles Slack interactive component webhooks.
@@ -47,29 +47,32 @@ export async function handleSlackInteraction(
     return new Response("OK", { status: 200 });
   }
 
-  switch (action.action_id) {
-    case "select_ticket":
-    case "select_hours":
-      // No-op: Slack preserves the selection state in the message.
-      return new Response("", { status: 200 });
+  const actionId = action.action_id;
 
-    case "submit_hours":
-      // Process async to respond within 3 seconds
-      ctx.waitUntil(processSubmitHours(payload, env));
-      return new Response("", { status: 200 });
-
-    default:
-      console.log(`Unknown action_id: ${action.action_id}`);
-      return new Response("", { status: 200 });
+  // No-op for slot selectors (Slack preserves UI state)
+  if (actionId.startsWith("select_ticket_") || actionId.startsWith("select_hours_")) {
+    return new Response("", { status: 200 });
   }
+
+  if (actionId === "submit_hours") {
+    // Process async to respond within 3 seconds
+    ctx.waitUntil(processSubmitHours(payload, env));
+    return new Response("", { status: 200 });
+  }
+
+  console.log(`Unknown action_id: ${actionId}`);
+  return new Response("", { status: 200 });
 }
 
 /**
- * Processes the "submit_hours" action:
- * 1. Extracts ticket + hours from state
- * 2. Re-validates current hours from Jira (server-side)
- * 3. Posts worklog to Jira
- * 4. Sends updated message via response_url
+ * Processes the "submit_hours" action with multi-slot support:
+ * 1. Parses targetDate from submit button value
+ * 2. Validates week-boundary (same ISO calendar week)
+ * 3. Parses 3 slots from state, rejects partial data
+ * 4. Validates no duplicate tickets, sum within limits
+ * 5. Re-validates current hours from Jira (stale-data guard)
+ * 6. Posts worklogs to Jira
+ * 7. Sends updated confirmation via response_url
  */
 async function processSubmitHours(
   payload: SlackInteractionPayload,
@@ -77,33 +80,103 @@ async function processSubmitHours(
 ): Promise<void> {
   const config = loadConfig();
   const responseUrl = payload.response_url;
+  const SLOT_COUNT = 3;
 
   try {
-    // Extract selections from Slack state
+    // ── 1. Parse targetDate from button value ──
+    const action = payload.actions?.[0];
+    const targetDate = action?.value;
+    if (!targetDate || !/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
+      await sendError(responseUrl, "⚠️ Fecha objetivo inválida. Por favor intenta de nuevo.");
+      return;
+    }
+
+    // ── 2. Week-boundary check ──
+    const currentDateET = getTodayET();
+    if (!isSameCalendarWeek(currentDateET, targetDate)) {
+      await updateMessageViaResponseUrl(
+        responseUrl,
+        [
+          {
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: `⛔ *Período expirado.* Este mensaje era para el *${targetDate}* y ya no pertenece a la semana calendario actual.\nLas horas deben cargarse directamente en Jira.`,
+            },
+          },
+        ],
+        `Período expirado. Este mensaje era para el ${targetDate}.`,
+        true
+      );
+      return;
+    }
+
+    // ── 3. Parse the 3 slots from state ──
     const state = payload.state?.values;
     if (!state) {
       await sendError(responseUrl, "No se encontraron selecciones. Por favor intenta de nuevo.");
       return;
     }
 
-    const ticketSelection = state["ticket_block"]?.["select_ticket"]?.selected_option;
-    const hoursSelection = state["hours_block"]?.["select_hours"]?.selected_option;
+    const validSlots: SlotEntry[] = [];
+    const partialSlots: number[] = [];
 
-    if (!ticketSelection || !hoursSelection) {
-      await sendError(responseUrl, "⚠️ Debes seleccionar un ticket y las horas antes de enviar.");
+    for (let i = 0; i < SLOT_COUNT; i++) {
+      const ticketSel = state[`ticket_block_${i}`]?.[`select_ticket_${i}`]?.selected_option;
+      const hoursSel = state[`hours_block_${i}`]?.[`select_hours_${i}`]?.selected_option;
+
+      const hasTicket = !!ticketSel;
+      const hasHours = !!hoursSel;
+
+      if (hasTicket && hasHours) {
+        const ticketKey = ticketSel!.value;
+        const hours = parseFloat(hoursSel!.value);
+        if (ticketKey === "none" || isNaN(hours) || hours <= 0) {
+          await sendError(responseUrl, `⚠️ Ranura ${i + 1}: selección inválida. Por favor revisa y vuelve a intentar.`);
+          return;
+        }
+        validSlots.push({ ticketKey, hours });
+      } else if (hasTicket || hasHours) {
+        partialSlots.push(i + 1); // 1-based for display
+      }
+      // both empty → skip silently
+    }
+
+    // ── 4. Reject partial data ──
+    if (partialSlots.length > 0) {
+      const slotList = partialSlots.join(", ");
+      await sendError(
+        responseUrl,
+        `⚠️ La(s) ranura(s) *${slotList}* tiene(n) datos incompletos. Debes seleccionar *ticket y horas* en cada ranura que uses, o dejar ambas vacías.`
+      );
       return;
     }
 
-    const ticketKey = ticketSelection.value;
-    const hoursToAdd = parseFloat(hoursSelection.value);
-
-    if (ticketKey === "none" || isNaN(hoursToAdd) || hoursToAdd <= 0) {
-      await sendError(responseUrl, "⚠️ Selección inválida. Por favor intenta de nuevo.");
+    // ── 5. At least one valid slot ──
+    if (validSlots.length === 0) {
+      await sendError(responseUrl, "⚠️ No seleccionaste ningún ticket ni horas. Completa al menos una ranura.");
       return;
     }
 
-    // Resolve the user's email from Slack user ID
-    // We need to find which configured user this Slack user is
+    // ── 6. Duplicate ticket check ──
+    const ticketKeys = validSlots.map((s) => s.ticketKey);
+    const uniqueKeys = new Set(ticketKeys);
+    if (uniqueKeys.size !== ticketKeys.length) {
+      await sendError(responseUrl, "⚠️ No puedes seleccionar el mismo ticket en más de una ranura.");
+      return;
+    }
+
+    // ── 7. Pre-check: submitted total vs daily target ──
+    const submittedTotal = validSlots.reduce((sum, s) => sum + s.hours, 0);
+    if (submittedTotal > config.tracking.dailyTarget) {
+      await sendError(
+        responseUrl,
+        `⚠️ El total enviado (*${submittedTotal.toFixed(1)}h*) supera el límite diario de ${config.tracking.dailyTarget}h.`
+      );
+      return;
+    }
+
+    // ── 8. Resolve user email ──
     const slackUserId = payload.user.id;
     const userEmail = await resolveEmailFromSlackId(env, slackUserId, config.users);
     if (!userEmail) {
@@ -111,38 +184,67 @@ async function processSubmitHours(
       return;
     }
 
-    // Server-side re-validation: fetch current hours from Jira
-    const today = getTodayET();
-    const issues = await searchIssuesWithWorklogs(env, config.jira.boards, today, today);
+    // ── 9. Fetch fresh Jira data (stale-data guard) ──
+    const issues = await searchIssuesWithWorklogs(env, config.jira.boards);
     const accountEmailMap = await buildAccountIdEmailMap(env, issues);
-    const summaries = aggregateUserHours(issues, accountEmailMap, [userEmail], today);
+    const summaries = aggregateUserHours(issues, accountEmailMap, [userEmail], targetDate);
     const currentSummary = summaries.get(userEmail.toLowerCase());
     const currentTotal = currentSummary?.totalHours ?? 0;
 
-    // Validate: would this exceed the daily target?
-    if (currentTotal + hoursToAdd > config.tracking.dailyTarget) {
+    if (currentTotal + submittedTotal > config.tracking.dailyTarget) {
       const remaining = Math.max(0, config.tracking.dailyTarget - currentTotal);
-      await sendError(
+
+      // Build a fresh updated message showing real balance
+      const freshSummary = currentSummary ?? {
+        email: userEmail,
+        displayName: userEmail.split("@")[0],
+        totalHours: currentTotal,
+        tickets: [],
+        assignedTicketKeys: [],
+      };
+      const freshBlocks = buildDailyMessage(freshSummary, config, targetDate);
+
+      // Prepend stale-data warning
+      const warningBlock = {
+        type: "section" as const,
+        text: {
+          type: "mrkdwn" as const,
+          text: `⚠️ *Datos desactualizados.* Ya tienes *${currentTotal.toFixed(1)}h* cargadas para el ${targetDate}. Solo puedes agregar *${remaining.toFixed(1)}h* más.\n_Se ha actualizado el mensaje con tu saldo real._`,
+        },
+      };
+
+      await updateMessageViaResponseUrl(
         responseUrl,
-        `⚠️ No se puede cargar *${hoursToAdd.toFixed(1)}h* porque ya tienes *${currentTotal.toFixed(1)}h* hoy.\n` +
-          `Solo puedes cargar hasta *${remaining.toFixed(1)}h* más.`
+        [warningBlock, { type: "divider" }, ...freshBlocks],
+        `Datos desactualizados. Ya tienes ${currentTotal.toFixed(1)}h. Solo puedes agregar ${remaining.toFixed(1)}h más.`,
+        true
       );
       return;
     }
 
-    // Post worklog to Jira
-    const timeSpentSeconds = hoursToAdd * 3600;
-    const success = await postWorklog(env, ticketKey, today, timeSpentSeconds);
+    // ── 10. Post worklogs to Jira ──
+    const failed: string[] = [];
+    const succeeded: { ticketKey: string; hours: number }[] = [];
 
-    if (!success) {
+    for (const slot of validSlots) {
+      const timeSpentSeconds = slot.hours * 3600;
+      const ok = await postWorklog(env, slot.ticketKey, targetDate, timeSpentSeconds);
+      if (ok) {
+        succeeded.push(slot);
+      } else {
+        failed.push(slot.ticketKey);
+      }
+    }
+
+    if (succeeded.length === 0) {
       await sendError(responseUrl, "❌ Error al cargar horas en Jira. Por favor intenta de nuevo o carga manualmente.");
       return;
     }
 
-    // Re-fetch updated hours for the confirmation message
-    const updatedIssues = await searchIssuesWithWorklogs(env, config.jira.boards, today, today);
+    // ── 11. Build confirmation ──
+    const updatedIssues = await searchIssuesWithWorklogs(env, config.jira.boards);
     const updatedAccountMap = await buildAccountIdEmailMap(env, updatedIssues);
-    const updatedSummaries = aggregateUserHours(updatedIssues, updatedAccountMap, [userEmail], today);
+    const updatedSummaries = aggregateUserHours(updatedIssues, updatedAccountMap, [userEmail], targetDate);
     const updatedSummary = updatedSummaries.get(userEmail.toLowerCase());
 
     if (!updatedSummary) {
@@ -150,18 +252,29 @@ async function processSubmitHours(
       return;
     }
 
-    // Build and send confirmation message
     const confirmBlocks = buildConfirmationMessage(
-      ticketKey,
-      hoursToAdd,
+      succeeded,
       updatedSummary,
       config.tracking.dailyTarget
     );
 
+    // If some slots failed, append a warning
+    if (failed.length > 0) {
+      confirmBlocks.push({
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `⚠️ No se pudieron cargar horas en: ${failed.map((k) => `\`${k}\``).join(", ")}. Cárgalas manualmente en Jira.`,
+        },
+      });
+    }
+
+    const totalAdded = succeeded.reduce((s, e) => s + e.hours, 0);
     await updateMessageViaResponseUrl(
       responseUrl,
       confirmBlocks,
-      `✅ ${hoursToAdd.toFixed(1)}h cargadas en ${ticketKey}. Total: ${updatedSummary.totalHours.toFixed(1)}h`
+      `✅ ${totalAdded.toFixed(1)}h cargadas en ${succeeded.length} ticket(s). Total: ${updatedSummary.totalHours.toFixed(1)}h`,
+      true
     );
   } catch (err) {
     console.error("Error processing submit_hours:", err);
@@ -197,6 +310,7 @@ async function sendError(responseUrl: string, message: string): Promise<void> {
         text: { type: "mrkdwn", text: message },
       },
     ],
-    message.replace(/[*_`]/g, "")
+    message.replace(/[*_`]/g, ""),
+    false
   );
 }

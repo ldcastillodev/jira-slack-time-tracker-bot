@@ -1,4 +1,4 @@
-import type { Env } from "../types/index.ts";
+import type { Env, SlackBlock } from "../types/index.ts";
 import { loadConfig } from "../config.ts";
 import { getTodayET, getCurrentHourET, isFriday, getWeekBoundaries } from "../utils/date.ts";
 import { searchIssuesWithWorklogs, buildAccountIdEmailMap } from "../services/jira.ts";
@@ -58,16 +58,15 @@ export async function handleScheduled(env: Env): Promise<void> {
     }
 
     // Build message based on day of week
-    let blocks;
+    let blocks: SlackBlock[] = [];
     if (friday && weeklySummaries) {
       const weeklySummary = weeklySummaries.get(lowerEmail);
       if (weeklySummary) {
-        blocks = buildWeeklyMessage(dailySummary, weeklySummary, config, today);
-      } else {
-        blocks = buildDailyMessage(dailySummary, config, today);
+        blocks.push(...buildDailyMessage(dailySummary, config, today));
+        blocks.push(...buildWeeklyMessage(weeklySummary, config));
       }
     } else {
-      blocks = buildDailyMessage(dailySummary, config, today);
+      blocks.push(...buildDailyMessage(dailySummary, config, today));
     }
 
     const fallbackText = `Reporte de horas: ${dailySummary.totalHours.toFixed(1)}h / ${config.tracking.dailyTarget}h`;
