@@ -8,7 +8,7 @@ import type {
   JiraRawWorklog,
   JiraWorklogResponse,
 } from "../types/index.ts";
-import { getTodayET } from "../utils/date.ts";
+import { getWeekBoundaries } from "../utils/date.ts";
 
 // ─── Helpers ───
 
@@ -37,7 +37,7 @@ export async function searchIssuesWithWorklogs(
   const boardList = boards.map((b) => `"${b}"`).join(", ");
   const componentList = loadConfig().jira.projectComponents.map((c) => `"${c.name}"`).join(", ");
   // fetch issues that are in project components, to ensure we get all relevant worklogs for the day.
-  const jql = `project in (${boardList}) AND component in (${componentList})`;
+  const jql = `project in (${boardList}) AND component IN (${componentList})`;
 
   const fields = [
     "summary", "status", "created", "updated", "assignee", "labels", "components", "worklog"
@@ -127,16 +127,15 @@ async function fetchAllWorklogsForIssue(
     }
 
     const data = (await resp.json()) as JiraWorklogResponse;
-
-    // 1. Filter worklogs by targetDate (using startsWith to avoid format and timezone issues)
-    const dailyWorklogs = data.worklogs.filter((w) => {
+    const { monday, friday: weekFriday } = getWeekBoundaries(new Date());
+    // 1. Filter worklogs by weekdays (only filter worklogs that fall within the current week, based on their 'started' date)
+    const weeklyWorklogs = data.worklogs.filter((w) => {
       // Jira returns the 'started' field in this ISO format: "2026-04-01T12:00:00.000+0000"
-      // Using startsWith is the fastest and safest way to filter by day.
-      return w.started.startsWith(getTodayET());
+      return w.started.substring(0, 10) >= monday && w.started.substring(0, 10) <= weekFriday;
     });
 
     // 2. Map and insert only those that passed the filter
-    all.push(...dailyWorklogs.map((w) => mapRawWorklog(w, issueKey, issueSummary)));
+    all.push(...weeklyWorklogs.map((w) => mapRawWorklog(w, issueKey, issueSummary)));
 
     if (startAt + data.maxResults >= data.total) break;
     startAt += data.maxResults;
