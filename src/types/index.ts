@@ -121,8 +121,8 @@ export interface UserHoursSummary {
   email: string;
   displayName: string;
   totalHours: number;
-  tickets: TicketHours[];
-  assignedTicketKeys: TicketHours[];
+  workedTickets: TicketHours[];
+  ticketKeys: TicketHours[];
 }
 
 export interface DailyBreakdown {

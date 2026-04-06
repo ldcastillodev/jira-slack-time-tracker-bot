@@ -178,7 +178,8 @@ async function processSubmitHours(
 
     // ── 8. Resolve user email ──
     const slackUserId = payload.user.id;
-    const userEmails = Object.keys(JSON.parse(env.USERS) as JiraUsers);
+    const users = JSON.parse(env.USERS) as JiraUsers;
+    const userEmails = Object.keys(users);
     const userEmail = await resolveEmailFromSlackId(env, slackUserId, userEmails);
     if (!userEmail) {
       await sendError(responseUrl, "⚠️ No se pudo identificar tu usuario. Contacta al administrador.");
@@ -187,9 +188,9 @@ async function processSubmitHours(
 
     // ── 9. Fetch fresh Jira data (stale-data guard) ──
     const jiraConfig = JSON.parse(env.JIRA_CONFIG) as JiraConfig;
-    const issues = await searchIssuesWithWorklogs(env);
+    const issues = await searchIssuesWithWorklogs(env, userEmail);
     const accountEmailMap = await buildAccountIdEmailMap(env, issues);
-    const summaries = aggregateUserHours(issues, accountEmailMap, [userEmail], targetDate);
+    const summaries = aggregateUserHours(issues, accountEmailMap, targetDate);
     const currentSummary = summaries.get(userEmail.toLowerCase());
     const currentTotal = currentSummary?.totalHours ?? 0;
 
@@ -201,8 +202,8 @@ async function processSubmitHours(
         email: userEmail,
         displayName: userEmail.split("@")[0],
         totalHours: currentTotal,
-        tickets: [],
-        assignedTicketKeys: [],
+        workedTickets: [],
+        ticketKeys: [],
       };
       const freshBlocks = buildDailyMessage(freshSummary, config, targetDate, jiraConfig);
 
@@ -230,7 +231,7 @@ async function processSubmitHours(
 
     for (const slot of validSlots) {
       const timeSpentSeconds = slot.hours * 3600;
-      const ok = await postWorklog(env, slot.ticketKey, targetDate, timeSpentSeconds);
+      const ok = await postWorklog(env, slot.ticketKey, targetDate, timeSpentSeconds, userEmail);
       if (ok) {
         succeeded.push(slot);
       } else {
@@ -244,9 +245,9 @@ async function processSubmitHours(
     }
 
     // ── 11. Build confirmation ──
-    const updatedIssues = await searchIssuesWithWorklogs(env);
+    const updatedIssues = await searchIssuesWithWorklogs(env, userEmail);
     const updatedAccountMap = await buildAccountIdEmailMap(env, updatedIssues);
-    const updatedSummaries = aggregateUserHours(updatedIssues, updatedAccountMap, [userEmail], targetDate);
+    const updatedSummaries = aggregateUserHours(updatedIssues, updatedAccountMap, targetDate);
     const updatedSummary = updatedSummaries.get(userEmail.toLowerCase());
 
     if (!updatedSummary) {

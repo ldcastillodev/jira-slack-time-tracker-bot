@@ -16,7 +16,6 @@ import type {
 export function aggregateUserHours(
   issues: JiraIssue[],
   accountEmailMap: Map<string, string>,
-  userEmails: string[],
   targetDate: string
 ): Map<string, UserHoursSummary> {
   const summaries = new Map<string, UserHoursSummary>();
@@ -28,8 +27,8 @@ export function aggregateUserHours(
         email: email,
         displayName: displayName || email.split("@")[0],
         totalHours: 0,
-        tickets: [],
-        assignedTicketKeys: [],
+        workedTickets: [],
+        ticketKeys: [],
       });
     }
     return summaries.get(lowerEmail)!;
@@ -43,7 +42,7 @@ export function aggregateUserHours(
       if (assigneeEmail) {
         // Create dynamically if not existed in userEmails
         const summary = getOrCreateSummary(assigneeEmail, issue.assigneeDisplayName);
-        summary.assignedTicketKeys.push({ key: issue.key, summary: issue.summary, hours: 0 });
+        summary.ticketKeys.push({ key: issue.key, summary: issue.summary, hours: 0 });
       }
     }
 
@@ -60,11 +59,11 @@ export function aggregateUserHours(
       const hours = wl.timeSpentSeconds / 3600;
       
       // Find or create the ticket entry
-      const existing = summary.tickets.find((t) => t.key === issue.key);
+      const existing = summary.workedTickets.find((t) => t.key === issue.key);
       if (existing) {
         existing.hours += hours;
       } else {
-        summary.tickets.push({
+        summary.workedTickets.push({
           key: issue.key,
           summary: issue.summary,
           hours,

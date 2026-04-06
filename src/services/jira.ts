@@ -7,18 +7,21 @@ import type {
   JiraRawWorklog,
   JiraWorklogResponse,
   JiraConfig,
+  JiraUsers,
 } from "../types/index.ts";
 import { getWeekBoundaries } from "../utils/date.ts";
 
 // ─── Helpers ───
 
-function authHeader(env: Env): string {
-  return "Basic " + btoa(`${env.JIRA_USER_EMAIL}:${env.JIRA_API_TOKEN}`);
+function authHeader(env: Env, email?: string, token?: string): string {
+  const userEmail = email ?? env.JIRA_USER_EMAIL;
+  const apiToken = token ?? env.JIRA_API_TOKEN;
+  return "Basic " + btoa(`${userEmail}:${apiToken}`);
 }
 
-function baseHeaders(env: Env): Record<string, string> {
+function baseHeaders(env: Env, email?: string, token?: string): Record<string, string> {
   return {
-    "Authorization": authHeader(env),
+    "Authorization": authHeader(env, email, token),
     "Content-Type": "application/json",
     "Accept": "application/json",
   };
@@ -32,12 +35,14 @@ function baseHeaders(env: Env): Record<string, string> {
  */
 export async function searchIssuesWithWorklogs(
   env: Env,
+  email?: string,
 ): Promise<JiraIssue[]> {
   const jiraConfig = JSON.parse(env.JIRA_CONFIG) as JiraConfig;
   const boardList = jiraConfig.jira.boards.map((b) => `"${b}"`).join(", ");
   const componentList = jiraConfig.jira.projectComponents.map((c) => `"${c.name}"`).join(", ");
+  const users = JSON.parse(env.USERS) as JiraUsers;
   // fetch issues that are in project components, to ensure we get all relevant worklogs for the day.
-  const jql = `project in (${boardList}) AND component IN (${componentList})`;
+  const jql = `project in (${boardList}) AND component IN (${componentList})${(email && users[email]) ? ` AND worklogAuthor = currentUser()` : ""}`;
 
   const fields = [
     "summary", "status", "created", "updated", "assignee", "labels", "components", "worklog"
@@ -167,17 +172,19 @@ export async function postWorklog(
   env: Env,
   issueKey: string,
   dateStr: string,
-  timeSpentSeconds: number
+  timeSpentSeconds: number,
+  email: string
 ): Promise<boolean> {
   const url = `${env.JIRA_BASE_URL}/rest/api/3/issue/${issueKey}/worklog`;
   const body = {
     started: `${dateStr}T12:00:00.000+0000`,
     timeSpentSeconds,
   };
+  const users = JSON.parse(env.USERS) as JiraUsers;
 
   const resp = await fetch(url, {
     method: "POST",
-    headers: baseHeaders(env),
+    headers: baseHeaders(env, email, users[email]),
     body: JSON.stringify(body),
   });
 

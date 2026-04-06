@@ -37,7 +37,7 @@ export async function handleScheduled(env: Env): Promise<void> {
   const accountEmailMap = await buildAccountIdEmailMap(env, issues);
 
   // Aggregate daily hours per user
-  const dailySummaries = aggregateUserHours(issues, accountEmailMap,  userEmails, today);
+  const dailySummaries = aggregateUserHours(issues, accountEmailMap, today);
 
   // Aggregate weekly hours if Friday
   const weeklySummaries = friday
@@ -49,6 +49,7 @@ export async function handleScheduled(env: Env): Promise<void> {
   for (const email of userEmails) {
     const lowerEmail = email.toLowerCase();
     const dailySummary = dailySummaries.get(lowerEmail);
+    console.log(dailySummary)
     if (!dailySummary) {
       console.error(`No summary found for ${email}`);
       continue;

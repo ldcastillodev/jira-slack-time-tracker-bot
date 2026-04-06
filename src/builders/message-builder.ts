@@ -52,14 +52,14 @@ function buildHoursBreakdown(summary: UserHoursSummary, dailyTarget: number): Sl
   blocks.push({ type: "divider" });
 
   // Per-ticket breakdown
-  if (summary.tickets.length === 0) {
+  if (summary.workedTickets.length === 0) {
     blocks.push({
       type: "section",
       text: { type: "mrkdwn", text: "_No hay horas registradas hoy._" },
     });
   } else {
     let breakdown = "*Desglose por ticket:*\n";
-    for (const t of summary.tickets) {
+    for (const t of summary.workedTickets) {
       breakdown += `• \`${t.key}\` ${t.summary} — *${t.hours.toFixed(1)}h*\n`;
     }
     blocks.push({
@@ -107,19 +107,19 @@ function buildInteractiveSection(
     }
   }
 
-  for (const assignedTicket of summary.assignedTicketKeys) {
-    if (!seenKeys.has(assignedTicket.key)) {
-      const ticket = summary.tickets.find((t) => t.key === assignedTicket.key);
-      const label = ticket ? ticket.summary : assignedTicket.summary;
+  for (const tk of summary.ticketKeys) {
+    if (!seenKeys.has(tk.key)) {
+      const ticket = summary.workedTickets.find((t) => t.key === tk.key);
+      const label = ticket ? ticket.summary : tk.summary;
       ticketOptions.push({
-        text: { type: "plain_text", text: truncate(`${assignedTicket.key} - ${label}`, 75), emoji: true },
-        value: assignedTicket.key,
+        text: { type: "plain_text", text: truncate(`${tk.key} - ${label}`, 75), emoji: true },
+        value: tk.key,
       });
-      seenKeys.add(assignedTicket.key);
+      seenKeys.add(tk.key);
     }
   }
 
-  for (const t of summary.tickets) {
+  for (const t of summary.workedTickets) {
     if (!seenKeys.has(t.key)) {
       ticketOptions.push({
         text: { type: "plain_text", text: truncate(`${t.key} - ${t.summary}`, 75), emoji: true },
