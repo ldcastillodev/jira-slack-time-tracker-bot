@@ -1,4 +1,4 @@
-import type { Env, JiraConfig, SlackInteractionPayload, SlotEntry } from "../types/index.ts";
+import type { Env, JiraConfig, JiraUsers, SlackInteractionPayload, SlotEntry } from "../types/index.ts";
 import { verifySlackSignature } from "../utils/crypto.ts";
 import { getTodayET, isSameCalendarWeek } from "../utils/date.ts";
 import { loadConfig } from "../config.ts";
@@ -178,8 +178,8 @@ async function processSubmitHours(
 
     // ── 8. Resolve user email ──
     const slackUserId = payload.user.id;
-    const users = env.USERS.split(",").map((e) => e.trim().toLowerCase());
-    const userEmail = await resolveEmailFromSlackId(env, slackUserId, users);
+    const userEmails = Object.keys(JSON.parse(env.USERS) as JiraUsers);
+    const userEmail = await resolveEmailFromSlackId(env, slackUserId, userEmails);
     if (!userEmail) {
       await sendError(responseUrl, "⚠️ No se pudo identificar tu usuario. Contacta al administrador.");
       return;

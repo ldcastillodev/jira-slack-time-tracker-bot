@@ -1,4 +1,4 @@
-import type { Env, JiraConfig, SlackBlock } from "../types/index.ts";
+import type { Env, JiraConfig, JiraUsers, SlackBlock } from "../types/index.ts";
 import { loadConfig } from "../config.ts";
 import { getTodayET, getCurrentHourET, isFriday, getWeekBoundaries } from "../utils/date.ts";
 import { searchIssuesWithWorklogs, buildAccountIdEmailMap } from "../services/jira.ts";
@@ -13,7 +13,9 @@ import { buildDailyMessage, buildWeeklyMessage } from "../builders/message-build
 export async function handleScheduled(env: Env): Promise<void> {
   const config = loadConfig();
   const currentHourET = getCurrentHourET();
-  const users = env.USERS.split(",").map((u) => u.trim().toLowerCase());
+  const users = JSON.parse(env.USERS) as JiraUsers;
+  const userEmails = Object.keys(users);
+
   const jiraConfig = JSON.parse(env.JIRA_CONFIG) as JiraConfig;
 
   // Only execute at the configured hour in ET (handles DST automatically)
@@ -35,16 +37,16 @@ export async function handleScheduled(env: Env): Promise<void> {
   const accountEmailMap = await buildAccountIdEmailMap(env, issues);
 
   // Aggregate daily hours per user
-  const dailySummaries = aggregateUserHours(issues, accountEmailMap, users, today);
+  const dailySummaries = aggregateUserHours(issues, accountEmailMap,  userEmails, today);
 
   // Aggregate weekly hours if Friday
   const weeklySummaries = friday
-    ? aggregateWeeklyHours(issues, accountEmailMap, users, monday, weekFriday)
+    ? aggregateWeeklyHours(issues, accountEmailMap, userEmails, monday, weekFriday)
     : null;
 
   // Send messages to each user
   let sentCount = 0;
-  for (const email of users) {
+  for (const email of userEmails) {
     const lowerEmail = email.toLowerCase();
     const dailySummary = dailySummaries.get(lowerEmail);
     if (!dailySummary) {
@@ -82,5 +84,5 @@ export async function handleScheduled(env: Env): Promise<void> {
     }
   }
 
-  console.log(`Done: sent ${sentCount}/${users.length} notifications`);
+  console.log(`Done: sent ${sentCount}/${userEmails.length} notifications`);
 }

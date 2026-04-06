@@ -8,11 +8,13 @@ export interface Env {
   JIRA_CONFIG: string;
   SLACK_BOT_TOKEN: string;
   SLACK_SIGNING_SECRET: string;
-  USERS: string; // Comma-separated list of user emails to track
+  USERS: string;
 }
 
 // ─── Configuration ───
-
+export interface JiraUsers {
+  [key: string]: string;
+}
 export interface GenericTicket {
   key: string;
   summary: string;
