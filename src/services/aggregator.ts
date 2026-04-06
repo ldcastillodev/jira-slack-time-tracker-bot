@@ -43,7 +43,7 @@ export function aggregateUserHours(
       if (assigneeEmail) {
         // Create dynamically if not existed in userEmails
         const summary = getOrCreateSummary(assigneeEmail, issue.assigneeDisplayName);
-        summary.assignedTicketKeys.push(issue.key);
+        summary.assignedTicketKeys.push({ key: issue.key, summary: issue.summary, hours: 0 });
       }
     }
 

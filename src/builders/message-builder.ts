@@ -4,7 +4,7 @@ import type {
   UserHoursSummary,
   WeeklyBreakdown,
   TrackerConfig,
-  GenericTicket,
+  JiraConfig,
 } from "../types/index.ts";
 
 // ─── Day Abbreviations ───
@@ -78,7 +78,8 @@ const SLOT_COUNT = 3;
 function buildInteractiveSection(
   summary: UserHoursSummary,
   config: TrackerConfig,
-  targetDate: string
+  targetDate: string,
+  jiraConfig: JiraConfig,
 ): SlackBlock[] {
   const blocks: SlackBlock[] = [];
   const remaining = config.tracking.dailyTarget - summary.totalHours;
@@ -96,25 +97,25 @@ function buildInteractiveSection(
   const ticketOptions: SlackOption[] = [];
   const seenKeys = new Set<string>();
 
-  for (const gt of config.jira.genericTickets) {
+  for (const gt of jiraConfig.jira.genericTickets) {
     if (!seenKeys.has(gt.key)) {
       ticketOptions.push({
-        text: { type: "plain_text", text: truncate(`${gt.key} - ${gt.label}`, 75), emoji: true },
+        text: { type: "plain_text", text: truncate(`${gt.key} - ${gt.summary}`, 75), emoji: true },
         value: gt.key,
       });
       seenKeys.add(gt.key);
     }
   }
 
-  for (const key of summary.assignedTicketKeys) {
-    if (!seenKeys.has(key)) {
-      const ticket = summary.tickets.find((t) => t.key === key);
-      const label = ticket ? ticket.summary : key;
+  for (const assignedTicket of summary.assignedTicketKeys) {
+    if (!seenKeys.has(assignedTicket.key)) {
+      const ticket = summary.tickets.find((t) => t.key === assignedTicket.key);
+      const label = ticket ? ticket.summary : assignedTicket.summary;
       ticketOptions.push({
-        text: { type: "plain_text", text: truncate(`${key} - ${label}`, 75), emoji: true },
-        value: key,
+        text: { type: "plain_text", text: truncate(`${assignedTicket.key} - ${label}`, 75), emoji: true },
+        value: assignedTicket.key,
       });
-      seenKeys.add(key);
+      seenKeys.add(assignedTicket.key);
     }
   }
 
@@ -303,12 +304,13 @@ export function buildConfirmationMessage(
 export function buildDailyMessage(
   summary: UserHoursSummary,
   config: TrackerConfig,
-  targetDate: string
+  targetDate: string,
+  jiraConfig: JiraConfig
 ): SlackBlock[] {
   const blocks = buildHoursBreakdown(summary, config.tracking.dailyTarget);
 
   if (summary.totalHours < config.tracking.dailyTarget) {
-    blocks.push(...buildInteractiveSection(summary, config, targetDate));
+    blocks.push(...buildInteractiveSection(summary, config, targetDate, jiraConfig));
   }
 
   return blocks;

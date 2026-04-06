@@ -1,4 +1,3 @@
-import { loadConfig } from "../config.ts";
 import type {
   Env,
   JiraSearchResponse,
@@ -7,6 +6,7 @@ import type {
   JiraWorklog,
   JiraRawWorklog,
   JiraWorklogResponse,
+  JiraConfig,
 } from "../types/index.ts";
 import { getWeekBoundaries } from "../utils/date.ts";
 
@@ -32,10 +32,10 @@ function baseHeaders(env: Env): Record<string, string> {
  */
 export async function searchIssuesWithWorklogs(
   env: Env,
-  boards: string[],
 ): Promise<JiraIssue[]> {
-  const boardList = boards.map((b) => `"${b}"`).join(", ");
-  const componentList = loadConfig().jira.projectComponents.map((c) => `"${c.name}"`).join(", ");
+  const jiraConfig = JSON.parse(env.JIRA_CONFIG) as JiraConfig;
+  const boardList = jiraConfig.jira.boards.map((b) => `"${b}"`).join(", ");
+  const componentList = jiraConfig.jira.projectComponents.map((c) => `"${c.name}"`).join(", ");
   // fetch issues that are in project components, to ensure we get all relevant worklogs for the day.
   const jql = `project in (${boardList}) AND component IN (${componentList})`;
 

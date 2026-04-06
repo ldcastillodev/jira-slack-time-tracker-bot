@@ -1,4 +1,4 @@
-import type { Env, SlackInteractionPayload, SlotEntry } from "../types/index.ts";
+import type { Env, JiraConfig, SlackInteractionPayload, SlotEntry } from "../types/index.ts";
 import { verifySlackSignature } from "../utils/crypto.ts";
 import { getTodayET, isSameCalendarWeek } from "../utils/date.ts";
 import { loadConfig } from "../config.ts";
@@ -178,14 +178,16 @@ async function processSubmitHours(
 
     // ── 8. Resolve user email ──
     const slackUserId = payload.user.id;
-    const userEmail = await resolveEmailFromSlackId(env, slackUserId, config.users);
+    const users = env.USERS.split(",").map((e) => e.trim().toLowerCase());
+    const userEmail = await resolveEmailFromSlackId(env, slackUserId, users);
     if (!userEmail) {
       await sendError(responseUrl, "⚠️ No se pudo identificar tu usuario. Contacta al administrador.");
       return;
     }
 
     // ── 9. Fetch fresh Jira data (stale-data guard) ──
-    const issues = await searchIssuesWithWorklogs(env, config.jira.boards);
+    const jiraConfig = JSON.parse(env.JIRA_CONFIG) as JiraConfig;
+    const issues = await searchIssuesWithWorklogs(env);
     const accountEmailMap = await buildAccountIdEmailMap(env, issues);
     const summaries = aggregateUserHours(issues, accountEmailMap, [userEmail], targetDate);
     const currentSummary = summaries.get(userEmail.toLowerCase());
@@ -202,7 +204,7 @@ async function processSubmitHours(
         tickets: [],
         assignedTicketKeys: [],
       };
-      const freshBlocks = buildDailyMessage(freshSummary, config, targetDate);
+      const freshBlocks = buildDailyMessage(freshSummary, config, targetDate, jiraConfig);
 
       // Prepend stale-data warning
       const warningBlock = {
@@ -242,7 +244,7 @@ async function processSubmitHours(
     }
 
     // ── 11. Build confirmation ──
-    const updatedIssues = await searchIssuesWithWorklogs(env, config.jira.boards);
+    const updatedIssues = await searchIssuesWithWorklogs(env);
     const updatedAccountMap = await buildAccountIdEmailMap(env, updatedIssues);
     const updatedSummaries = aggregateUserHours(updatedIssues, updatedAccountMap, [userEmail], targetDate);
     const updatedSummary = updatedSummaries.get(userEmail.toLowerCase());

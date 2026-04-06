@@ -1,7 +1,0 @@
-# Copy this file to .dev.vars and fill in your values.
-# These are used by `wrangler dev` for local development.
-
-JIRA_API_TOKEN=your_jira_api_token_here
-JIRA_USER_EMAIL=your.email@company.com
-SLACK_BOT_TOKEN=xoxb-your-slack-bot-token
-SLACK_SIGNING_SECRET=your_slack_signing_secret

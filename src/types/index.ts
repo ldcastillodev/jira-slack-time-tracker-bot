@@ -5,34 +5,37 @@ export interface Env {
   JIRA_BASE_URL: string;
   JIRA_API_TOKEN: string;
   JIRA_USER_EMAIL: string;
+  JIRA_CONFIG: string;
   SLACK_BOT_TOKEN: string;
   SLACK_SIGNING_SECRET: string;
+  USERS: string; // Comma-separated list of user emails to track
 }
 
 // ─── Configuration ───
 
 export interface GenericTicket {
   key: string;
-  label: string;
+  summary: string;
 }
 
 interface ProjectComponent {
   name: string;
 }
 
-export interface TrackerConfig {
+export interface JiraConfig {
   jira: {
     boards: string[];
     genericTickets: GenericTicket[];
     projectComponents: ProjectComponent[];
   };
+}
+export interface TrackerConfig {
   tracking: {
     dailyTarget: number;
     weeklyTarget: number;
     timezone: string;
     cronHourET: number;
   };
-  users: string[];
 }
 
 // ─── Jira Types ───
@@ -117,7 +120,7 @@ export interface UserHoursSummary {
   displayName: string;
   totalHours: number;
   tickets: TicketHours[];
-  assignedTicketKeys: string[];
+  assignedTicketKeys: TicketHours[];
 }
 
 export interface DailyBreakdown {

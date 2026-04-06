@@ -1,4 +1,4 @@
-import type { Env, SlackBlock } from "../types/index.ts";
+import type { Env, JiraConfig, SlackBlock } from "../types/index.ts";
 import { loadConfig } from "../config.ts";
 import { getTodayET, getCurrentHourET, isFriday, getWeekBoundaries } from "../utils/date.ts";
 import { searchIssuesWithWorklogs, buildAccountIdEmailMap } from "../services/jira.ts";
@@ -13,6 +13,8 @@ import { buildDailyMessage, buildWeeklyMessage } from "../builders/message-build
 export async function handleScheduled(env: Env): Promise<void> {
   const config = loadConfig();
   const currentHourET = getCurrentHourET();
+  const users = env.USERS.split(",").map((u) => u.trim().toLowerCase());
+  const jiraConfig = JSON.parse(env.JIRA_CONFIG) as JiraConfig;
 
   // Only execute at the configured hour in ET (handles DST automatically)
   if (currentHourET !== config.tracking.cronHourET) {
@@ -26,23 +28,23 @@ export async function handleScheduled(env: Env): Promise<void> {
   const friday = isFriday(new Date());
   const { monday, friday: weekFriday } = getWeekBoundaries(new Date());
 
-  const issues = await searchIssuesWithWorklogs(env, config.jira.boards);
+  const issues = await searchIssuesWithWorklogs(env);
   console.log(`Fetched ${issues.length} issues with worklogs`);
 
   // Build accountId → email mapping
   const accountEmailMap = await buildAccountIdEmailMap(env, issues);
 
   // Aggregate daily hours per user
-  const dailySummaries = aggregateUserHours(issues, accountEmailMap, config.users, today);
+  const dailySummaries = aggregateUserHours(issues, accountEmailMap, users, today);
 
   // Aggregate weekly hours if Friday
   const weeklySummaries = friday
-    ? aggregateWeeklyHours(issues, accountEmailMap, config.users, monday, weekFriday)
+    ? aggregateWeeklyHours(issues, accountEmailMap, users, monday, weekFriday)
     : null;
 
   // Send messages to each user
   let sentCount = 0;
-  for (const email of config.users) {
+  for (const email of users) {
     const lowerEmail = email.toLowerCase();
     const dailySummary = dailySummaries.get(lowerEmail);
     if (!dailySummary) {
@@ -62,11 +64,11 @@ export async function handleScheduled(env: Env): Promise<void> {
     if (friday && weeklySummaries) {
       const weeklySummary = weeklySummaries.get(lowerEmail);
       if (weeklySummary) {
-        blocks.push(...buildDailyMessage(dailySummary, config, today));
+        blocks.push(...buildDailyMessage(dailySummary, config, today, jiraConfig));
         blocks.push(...buildWeeklyMessage(weeklySummary, config));
       }
     } else {
-      blocks.push(...buildDailyMessage(dailySummary, config, today));
+      blocks.push(...buildDailyMessage(dailySummary, config, today, jiraConfig));
     }
 
     const fallbackText = `Reporte de horas: ${dailySummary.totalHours.toFixed(1)}h / ${config.tracking.dailyTarget}h`;
@@ -80,5 +82,5 @@ export async function handleScheduled(env: Env): Promise<void> {
     }
   }
 
-  console.log(`Done: sent ${sentCount}/${config.users.length} notifications`);
+  console.log(`Done: sent ${sentCount}/${users.length} notifications`);
 }
