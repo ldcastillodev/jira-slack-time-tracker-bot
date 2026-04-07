@@ -1,4 +1,5 @@
 import type { Env, SlackBlock } from "../types/index.ts";
+import { CACHE_KEY_SLACK_USER_PREFIX, TTL_SLACK_USER } from "../constants.ts";
 
 // ─── Lookup Slack User by Email (KV-cached) ───
 
@@ -7,7 +8,7 @@ import type { Env, SlackBlock } from "../types/index.ts";
  * Results are cached in KV for 7 days.
  */
 export async function lookupUserByEmail(env: Env, email: string): Promise<string | null> {
-  const kvKey = `slack_user:${email}`;
+  const kvKey = `${CACHE_KEY_SLACK_USER_PREFIX}${email}`;
 
   const cached = await env.CACHE.get(kvKey);
   if (cached) return cached;
@@ -29,7 +30,7 @@ export async function lookupUserByEmail(env: Env, email: string): Promise<string
     return null;
   }
 
-  await env.CACHE.put(kvKey, data.user.id, { expirationTtl: 7 * 24 * 3600 });
+  await env.CACHE.put(kvKey, data.user.id, { expirationTtl: TTL_SLACK_USER });
   return data.user.id;
 }
 
