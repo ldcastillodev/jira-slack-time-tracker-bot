@@ -7,7 +7,7 @@ import {
   buildAccountIdEmailMap,
   postWorklog,
 } from "../services/jira.ts";
-import { updateMessageViaResponseUrl } from "../services/slack.ts";
+import { sendDirectMessage, updateMessageViaResponseUrl } from "../services/slack.ts";
 import { aggregateUserHours } from "../services/aggregator.ts";
 import { buildConfirmationMessage, buildDailyMessage } from "../builders/message-builder.ts";
 
@@ -277,6 +277,22 @@ async function processSubmitHours(
           text: `⚠️ No se pudieron cargar horas en: ${failed.map((k) => `\`${k}\``).join(", ")}. Cárgalas manualmente en Jira.`,
         },
       });
+    }
+
+    if (updatedSummary.totalHours < config.tracking.dailyTarget) {
+      const followUpBlocks = buildDailyMessage(updatedSummary, config, targetDate, jiraConfig);
+      const followUpText = `Te faltan ${(config.tracking.dailyTarget - updatedSummary.totalHours).toFixed(1)}h para completar tu día.`;
+      const followUpSent = await sendDirectMessage(env, slackUserId, followUpBlocks, followUpText);
+
+      if (!followUpSent) {
+        confirmBlocks.push({
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: "⚠️ No se pudo enviar el nuevo mensaje para seguir cargando horas.",
+          },
+        });
+      }
     }
 
     const totalAdded = succeeded.reduce((s, e) => s + e.hours, 0);
