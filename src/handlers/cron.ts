@@ -1,4 +1,4 @@
-import type { Env, JiraConfig, JiraUsers, SlackBlock } from "../types/index.ts";
+import type { Env, JiraConfig, JiraUsers, SlackBlock, CachedTicket } from "../types/index.ts";
 import { loadConfig } from "../config.ts";
 import { getTodayET, getCurrentHourET, isFriday, getWeekBoundaries } from "../utils/date.ts";
 import { searchIssuesWithWorklogs, buildAccountIdEmailMap } from "../services/jira.ts";
@@ -32,6 +32,29 @@ export async function handleScheduled(env: Env): Promise<void> {
 
   const issues = await searchIssuesWithWorklogs(env);
   console.log(`Fetched ${issues.length} issues with worklogs`);
+
+  // Cache all tickets in KV for external_select typeahead
+  const seenKeys = new Set<string>();
+  const cachedTickets: CachedTicket[] = [];
+
+  // Generic tickets first (priority in search results)
+  for (const gt of jiraConfig.jira.genericTickets) {
+    if (!seenKeys.has(gt.key)) {
+      cachedTickets.push({ key: gt.key, summary: gt.summary });
+      seenKeys.add(gt.key);
+    }
+  }
+
+  // All project issues
+  for (const issue of issues) {
+    if (!seenKeys.has(issue.key)) {
+      cachedTickets.push({ key: issue.key, summary: issue.summary });
+      seenKeys.add(issue.key);
+    }
+  }
+
+  await env.CACHE.put("all_tickets", JSON.stringify(cachedTickets));
+  console.log(`Cached ${cachedTickets.length} tickets in KV for typeahead`);
 
   // Build accountId → email mapping
   const accountEmailMap = await buildAccountIdEmailMap(env, issues);

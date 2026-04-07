@@ -138,6 +138,20 @@ export interface WeeklyBreakdown {
   days: DailyBreakdown[];
 }
 
+// ─── Cached Ticket (KV store for external_select) ───
+
+export interface CachedTicket {
+  key: string;
+  summary: string;
+}
+
+// ─── Existing Selection (for preserving state when adding slots) ───
+
+export interface ExistingSelection {
+  ticketOption?: SlackOption;
+  hoursOption?: SlackOption;
+}
+
 // ─── Slack Types ───
 
 export interface SlackBlock {
@@ -163,6 +177,11 @@ export interface SlackOption {
   value: string;
 }
 
+export interface SlackOptionGroup {
+  label: SlackTextObject;
+  options: SlackOption[];
+}
+
 export interface SlackElement {
   type: string;
   action_id?: string;
@@ -172,6 +191,7 @@ export interface SlackElement {
   options?: SlackOption[];
   placeholder?: SlackTextObject;
   initial_option?: SlackOption;
+  min_query_length?: number;
 }
 
 export interface SlackInteractionPayload {

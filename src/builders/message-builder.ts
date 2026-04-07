@@ -1,10 +1,12 @@
 import type {
   SlackBlock,
   SlackOption,
+  SlackElement,
   UserHoursSummary,
   WeeklyBreakdown,
   TrackerConfig,
   JiraConfig,
+  ExistingSelection,
 } from "../types/index.ts";
 
 // ─── Day Abbreviations ───
@@ -71,63 +73,31 @@ function buildHoursBreakdown(summary: UserHoursSummary, dailyTarget: number): Sl
   return blocks;
 }
 
-// ─── Scenario A: Interactive (under daily target) — 3 pre-rendered slots ───
+// ─── Scenario A: Interactive (under daily target) — dynamic slots with external_select ───
 
-const SLOT_COUNT = 3;
+const DEFAULT_SLOT_COUNT = 3;
+const MAX_SLOT_COUNT = 10;
 
 function buildInteractiveSection(
   summary: UserHoursSummary,
   config: TrackerConfig,
   targetDate: string,
-  jiraConfig: JiraConfig,
+  _jiraConfig: JiraConfig,
+  slotCount: number = DEFAULT_SLOT_COUNT,
+  existingSelections: ExistingSelection[] = [],
 ): SlackBlock[] {
   const blocks: SlackBlock[] = [];
   const remaining = config.tracking.dailyTarget - summary.totalHours;
+  const effectiveSlotCount = Math.min(slotCount, MAX_SLOT_COUNT);
 
   blocks.push({ type: "divider" });
   blocks.push({
     type: "section",
     text: {
       type: "mrkdwn",
-      text: `🔔 Te faltan *${remaining.toFixed(1)}h* para llegar a ${config.tracking.dailyTarget}h. ¡Carga tus horas directamente desde aquí!\n_Puedes usar hasta ${SLOT_COUNT} ranuras. Las que dejes vacías serán ignoradas._`,
+      text: `🔔 Te faltan *${remaining.toFixed(1)}h* para llegar a ${config.tracking.dailyTarget}h. ¡Carga tus horas directamente desde aquí!\n_Puedes usar hasta ${effectiveSlotCount} ranuras. Las que dejes vacías serán ignoradas._`,
     },
   });
-
-  // Build ticket options (shared across all slots)
-  const ticketOptions: SlackOption[] = [];
-  const seenKeys = new Set<string>();
-
-  for (const gt of jiraConfig.jira.genericTickets) {
-    if (!seenKeys.has(gt.key)) {
-      ticketOptions.push({
-        text: { type: "plain_text", text: truncate(`${gt.key} - ${gt.summary}`, 75), emoji: true },
-        value: gt.key,
-      });
-      seenKeys.add(gt.key);
-    }
-  }
-
-  for (const tk of summary.ticketKeys) {
-    if (!seenKeys.has(tk.key)) {
-      const ticket = summary.workedTickets.find((t) => t.key === tk.key);
-      const label = ticket ? ticket.summary : tk.summary;
-      ticketOptions.push({
-        text: { type: "plain_text", text: truncate(`${tk.key} - ${label}`, 75), emoji: true },
-        value: tk.key,
-      });
-      seenKeys.add(tk.key);
-    }
-  }
-
-  for (const t of summary.workedTickets) {
-    if (!seenKeys.has(t.key)) {
-      ticketOptions.push({
-        text: { type: "plain_text", text: truncate(`${t.key} - ${t.summary}`, 75), emoji: true },
-        value: t.key,
-      });
-      seenKeys.add(t.key);
-    }
-  }
 
   // Hours options (shared across all slots)
   const hoursOptions: SlackOption[] = [];
@@ -139,13 +109,6 @@ function buildInteractiveSection(
     });
   }
 
-  // Fallback options
-  if (ticketOptions.length === 0) {
-    ticketOptions.push({
-      text: { type: "plain_text", text: "No hay tickets disponibles", emoji: true },
-      value: "none",
-    });
-  }
   if (hoursOptions.length === 0) {
     hoursOptions.push({
       text: { type: "plain_text", text: "0.5h", emoji: true },
@@ -153,52 +116,77 @@ function buildInteractiveSection(
     });
   }
 
-  // Render 3 slots
-  for (let i = 0; i < SLOT_COUNT; i++) {
+  // Render N slots
+  for (let i = 0; i < effectiveSlotCount; i++) {
+    const existing = existingSelections[i];
+
     blocks.push({ type: "divider" });
     blocks.push({
       type: "section",
       text: { type: "mrkdwn", text: `📝 *Ranura ${i + 1}*` },
     });
 
+    // Ticket selector — external_select with typeahead
+    const ticketAccessory: SlackElement = {
+      type: "external_select",
+      action_id: `select_ticket_${i}`,
+      placeholder: { type: "plain_text", text: "Buscar ticket...", emoji: true },
+      min_query_length: 0,
+    };
+    if (existing?.ticketOption) {
+      ticketAccessory.initial_option = existing.ticketOption;
+    }
+
     blocks.push({
       type: "section",
       block_id: `ticket_block_${i}`,
       text: { type: "mrkdwn", text: "*Ticket:*" },
-      accessory: {
-        type: "static_select",
-        action_id: `select_ticket_${i}`,
-        placeholder: { type: "plain_text", text: "Elegir ticket...", emoji: true },
-        options: ticketOptions,
-      },
+      accessory: ticketAccessory,
     });
+
+    // Hours selector — static_select (always <16 options)
+    const hoursAccessory: SlackElement = {
+      type: "static_select",
+      action_id: `select_hours_${i}`,
+      placeholder: { type: "plain_text", text: "Elegir horas...", emoji: true },
+      options: hoursOptions,
+    };
+    if (existing?.hoursOption) {
+      hoursAccessory.initial_option = existing.hoursOption;
+    }
 
     blocks.push({
       type: "section",
       block_id: `hours_block_${i}`,
       text: { type: "mrkdwn", text: "*Horas:*" },
-      accessory: {
-        type: "static_select",
-        action_id: `select_hours_${i}`,
-        placeholder: { type: "plain_text", text: "Elegir horas...", emoji: true },
-        options: hoursOptions,
-      },
+      accessory: hoursAccessory,
     });
   }
 
-  // Single submit button with targetDate encoded in value
+  // Action buttons: Submit + Add Slot (if under max)
+  const actionElements: SlackElement[] = [
+    {
+      type: "button",
+      action_id: "submit_hours",
+      text: { type: "plain_text", text: "✅ Cargar horas", emoji: true },
+      style: "primary",
+      value: targetDate,
+    },
+  ];
+
+  if (effectiveSlotCount < MAX_SLOT_COUNT) {
+    actionElements.push({
+      type: "button",
+      action_id: "add_slot",
+      text: { type: "plain_text", text: "➕ Agregar ticket", emoji: true },
+      value: `${effectiveSlotCount}:${targetDate}`,
+    });
+  }
+
   blocks.push({
     type: "actions",
     block_id: "submit_block",
-    elements: [
-      {
-        type: "button",
-        action_id: "submit_hours",
-        text: { type: "plain_text", text: "✅ Cargar horas", emoji: true },
-        style: "primary",
-        value: targetDate,
-      },
-    ],
+    elements: actionElements,
   });
 
   return blocks;
@@ -305,12 +293,14 @@ export function buildDailyMessage(
   summary: UserHoursSummary,
   config: TrackerConfig,
   targetDate: string,
-  jiraConfig: JiraConfig
+  jiraConfig: JiraConfig,
+  slotCount?: number,
+  existingSelections?: ExistingSelection[],
 ): SlackBlock[] {
   const blocks = buildHoursBreakdown(summary, config.tracking.dailyTarget);
 
   if (summary.totalHours < config.tracking.dailyTarget) {
-    blocks.push(...buildInteractiveSection(summary, config, targetDate, jiraConfig));
+    blocks.push(...buildInteractiveSection(summary, config, targetDate, jiraConfig, slotCount, existingSelections));
   }
 
   return blocks;
@@ -324,10 +314,4 @@ export function buildWeeklyMessage(
   config: TrackerConfig,
 ): SlackBlock[] {
   return [...buildWeeklySummaryBlocks(weeklySummary, config.tracking.weeklyTarget)];
-}
-
-// ─── Helpers ───
-
-function truncate(str: string, maxLen: number): string {
-  return str.length > maxLen ? str.substring(0, maxLen - 1) + "…" : str;
 }

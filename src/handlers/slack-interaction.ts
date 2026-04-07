@@ -1,4 +1,4 @@
-import type { Env, JiraConfig, JiraUsers, SlackInteractionPayload, SlotEntry } from "../types/index.ts";
+import type { Env, JiraConfig, JiraUsers, SlackInteractionPayload, SlotEntry, ExistingSelection } from "../types/index.ts";
 import { verifySlackSignature } from "../utils/crypto.ts";
 import { getTodayET, isSameCalendarWeek } from "../utils/date.ts";
 import { loadConfig } from "../config.ts";
@@ -60,6 +60,12 @@ export async function handleSlackInteraction(
     return new Response("", { status: 200 });
   }
 
+  if (actionId === "add_slot") {
+    // Process async to respond within 3 seconds
+    ctx.waitUntil(processAddSlot(payload, env));
+    return new Response("", { status: 200 });
+  }
+
   console.log(`Unknown action_id: ${actionId}`);
   return new Response("", { status: 200 });
 }
@@ -80,7 +86,6 @@ async function processSubmitHours(
 ): Promise<void> {
   const config = loadConfig();
   const responseUrl = payload.response_url;
-  const SLOT_COUNT = 3;
 
   try {
     // ── 1. Parse targetDate from button value ──
@@ -111,7 +116,7 @@ async function processSubmitHours(
       return;
     }
 
-    // ── 3. Parse the 3 slots from state ──
+    // ── 3. Parse slots dynamically from state ──
     const state = payload.state?.values;
     if (!state) {
       await sendError(responseUrl, "No se encontraron selecciones. Por favor intenta de nuevo.");
@@ -121,7 +126,8 @@ async function processSubmitHours(
     const validSlots: SlotEntry[] = [];
     const partialSlots: number[] = [];
 
-    for (let i = 0; i < SLOT_COUNT; i++) {
+    let i = 0;
+    while (state[`ticket_block_${i}`] || state[`hours_block_${i}`]) {
       const ticketSel = state[`ticket_block_${i}`]?.[`select_ticket_${i}`]?.selected_option;
       const hoursSel = state[`hours_block_${i}`]?.[`select_hours_${i}`]?.selected_option;
 
@@ -140,6 +146,7 @@ async function processSubmitHours(
         partialSlots.push(i + 1); // 1-based for display
       }
       // both empty → skip silently
+      i++;
     }
 
     // ── 4. Reject partial data ──
@@ -282,6 +289,82 @@ async function processSubmitHours(
   } catch (err) {
     console.error("Error processing submit_hours:", err);
     await sendError(responseUrl, "❌ Ocurrió un error inesperado. Por favor intenta de nuevo.");
+  }
+}
+
+/**
+ * Processes the "add_slot" action:
+ * 1. Parses current slot count and targetDate from button value
+ * 2. Extracts existing selections from state
+ * 3. Rebuilds the message with one additional slot, preserving selections
+ */
+async function processAddSlot(
+  payload: SlackInteractionPayload,
+  env: Env,
+): Promise<void> {
+  const config = loadConfig();
+  const responseUrl = payload.response_url;
+
+  try {
+    const action = payload.actions?.[0];
+    const buttonValue = action?.value ?? "";
+    const [slotCountStr, targetDate] = buttonValue.split(":");
+
+    const currentSlotCount = parseInt(slotCountStr, 10);
+    if (isNaN(currentSlotCount) || !targetDate) {
+      await sendError(responseUrl, "⚠️ Error al agregar ranura. Por favor intenta de nuevo.");
+      return;
+    }
+
+    // Extract existing selections from state
+    const state = payload.state?.values;
+    const existingSelections: ExistingSelection[] = [];
+
+    for (let i = 0; i < currentSlotCount; i++) {
+      const ticketOption = state?.[`ticket_block_${i}`]?.[`select_ticket_${i}`]?.selected_option;
+      const hoursOption = state?.[`hours_block_${i}`]?.[`select_hours_${i}`]?.selected_option;
+      existingSelections.push({
+        ticketOption: ticketOption ?? undefined,
+        hoursOption: hoursOption ?? undefined,
+      });
+    }
+
+    // Resolve user to get fresh summary
+    const jiraConfig = JSON.parse(env.JIRA_CONFIG) as JiraConfig;
+    const users = JSON.parse(env.USERS) as JiraUsers;
+    const userEmails = Object.keys(users);
+    const slackUserId = payload.user.id;
+    const userEmail = await resolveEmailFromSlackId(env, slackUserId, userEmails);
+
+    if (!userEmail) {
+      await sendError(responseUrl, "⚠️ No se pudo identificar tu usuario. Contacta al administrador.");
+      return;
+    }
+
+    // Fetch fresh data for the user
+    const issues = await searchIssuesWithWorklogs(env, userEmail);
+    const accountEmailMap = await buildAccountIdEmailMap(env, issues);
+    const summaries = aggregateUserHours(issues, accountEmailMap, targetDate);
+    const summary = summaries.get(userEmail.toLowerCase());
+
+    if (!summary) {
+      await sendError(responseUrl, "⚠️ No se encontraron datos. Intenta de nuevo.");
+      return;
+    }
+
+    // Build message with one more slot
+    const newSlotCount = currentSlotCount + 1;
+    const freshBlocks = buildDailyMessage(summary, config, targetDate, jiraConfig, newSlotCount, existingSelections);
+
+    await updateMessageViaResponseUrl(
+      responseUrl,
+      freshBlocks,
+      `Agregada ranura ${newSlotCount}. Total: ${summary.totalHours.toFixed(1)}h`,
+      true,
+    );
+  } catch (err) {
+    console.error("Error processing add_slot:", err);
+    await sendError(responseUrl, "❌ Ocurrió un error al agregar la ranura. Por favor intenta de nuevo.");
   }
 }
 
