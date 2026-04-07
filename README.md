@@ -12,7 +12,7 @@ Todos los días de lunes a viernes a las **4:00 PM ET**, el bot:
 
 | Escenario | Comportamiento |
 |-----------|---------------|
-| **< 8h cargadas** | Muestra el desglose + **3 ranuras interactivas** para cargar horas en múltiples tickets a la vez (intervalos de 0.5h). Valida duplicados, datos parciales, límite diario y datos obsoletos contra Jira en tiempo real. |
+| **< 8h cargadas** | Muestra el desglose + **ranuras interactivas dinámicas** (3 por defecto, expandibles hasta 10 con botón "➕ Agregar ticket") para cargar horas en múltiples tickets a la vez (intervalos de 0.5h). Los tickets se buscan con typeahead (sin límite de 100). Valida duplicados, datos parciales, límite diario y datos obsoletos contra Jira en tiempo real. |
 | **= 8h cargadas** | Muestra solo el desglose de horas como confirmación. Sin opciones interactivas. |
 | **Viernes** | Además del reporte diario, incluye un resumen semanal con el total vs. el objetivo de 40h y el desglose día por día. |
 
@@ -21,43 +21,61 @@ Todos los días de lunes a viernes a las **4:00 PM ET**, el bot:
 ## Arquitectura
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                  Cloudflare Worker                   │
-│                                                     │
-│  ┌──────────┐    ┌─────────────────────────────┐    │
-│  │  Cron    │───▶│ Jira API: fetch worklogs    │    │
-│  │ 4PM ET   │    │ Aggregate per user           │    │
-│  │ Mon-Fri  │    │ Build Block Kit message      │    │
-│  │          │    │ (3 ranuras + targetDate)     │    │
-│  │          │───▶│ Slack API: send DM           │    │
-│  └──────────┘    └─────────────────────────────┘    │
-│                                                     │
-│  ┌──────────┐    ┌─────────────────────────────┐    │
-│  │  POST    │───▶│ Verify Slack signature       │    │
-│  │ /slack/  │    │ Validate targetDate + week   │    │
-│  │ interact │    │ Parse 3 slots, check dupes   │    │
-│  │          │    │ Re-fetch Jira (stale guard)  │    │
-│  │          │───▶│ POST worklogs, update msg    │    │
-│  └──────────┘    └─────────────────────────────┘    │
-│                                                     │
-│  ┌──────────┐                                       │
-│  │ Workers  │  Cache: Slack user IDs, Jira          │
-│  │   KV     │  accountId→email mappings              │
-│  └──────────┘                                       │
-└─────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│                   Cloudflare Worker                       │
+│                                                          │
+│  ┌──────────┐    ┌──────────────────────────────────┐    │
+│  │  Cron    │───▶│ Jira API: fetch worklogs         │    │
+│  │ 4PM ET   │    │ Aggregate per user                │    │
+│  │ Mon-Fri  │    │ Cache all tickets in KV            │    │
+│  │          │    │ Build Block Kit (dynamic slots)    │    │
+│  │          │───▶│ Slack API: send DM                │    │
+│  └──────────┘    └──────────────────────────────────┘    │
+│                                                          │
+│  ┌──────────┐    ┌──────────────────────────────────┐    │
+│  │  POST    │───▶│ Verify Slack signature            │    │
+│  │ /slack/  │    │ submit_hours: validate + post     │    │
+│  │ interact │    │ add_slot: add slot + preserve      │    │
+│  │          │───▶│ Re-fetch Jira (stale guard)       │    │
+│  └──────────┘    └──────────────────────────────────┘    │
+│                                                          │
+│  ┌──────────┐    ┌──────────────────────────────────┐    │
+│  │  POST    │───▶│ Verify Slack signature            │    │
+│  │ /slack/  │    │ Read ticket cache from KV         │    │
+│  │ options  │    │ Filter by query (typeahead)       │    │
+│  │          │───▶│ Return option_groups (max 100)    │    │
+│  └──────────┘    └──────────────────────────────────┘    │
+│                                                          │
+│  ┌──────────┐                                            │
+│  │ Workers  │  Cache: Slack user IDs, Jira accountId     │
+│  │   KV     │  → email map, all_tickets (typeahead)      │
+│  └──────────┘                                            │
+└──────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Carga Múltiple de Horas (3 Ranuras)
+## Carga Múltiple de Horas (Ranuras Dinámicas)
 
 ### Interfaz
 
-Cuando un usuario tiene menos de 8h cargadas, el mensaje de Slack renderiza **3 ranuras (slots)** pre-generadas. Cada ranura contiene:
-- Un `static_select` para elegir un ticket (`ticket_block_0..2` / `select_ticket_0..2`)
-- Un `static_select` para elegir horas (`hours_block_0..2` / `select_hours_0..2`)
+Cuando un usuario tiene menos de 8h cargadas, el mensaje de Slack renderiza **3 ranuras (slots) iniciales**, expandibles hasta **10** con el botón **"➕ Agregar ticket"**. Cada ranura contiene:
+- Un `external_select` con búsqueda typeahead para elegir un ticket (sin límite de 100)
+- Un `static_select` para elegir horas (intervalos de 0.5h)
 
-Un único botón **"✅ Cargar horas"** al final envía las 3 ranuras juntas. El usuario puede usar 1, 2 o las 3 ranuras.
+Botones disponibles:
+- **"✅ Cargar horas"** — Envía todas las ranuras completas
+- **"➕ Agregar ticket"** — Agrega una ranura adicional preservando las selecciones existentes
+
+### Búsqueda de Tickets (external_select)
+
+Los selectores de ticket usan `external_select` con `min_query_length: 0`, lo que significa:
+- Al hacer clic en el selector, se muestran los tickets más relevantes (genéricos + proyecto)
+- Al escribir, se filtran dinámicamente por key o summary
+- Sin límite de 100 tickets (la búsqueda filtra del cache completo)
+- El endpoint `/slack/options` responde con `option_groups` separando "📌 Tickets Genéricos" y "📋 Tickets de Proyecto"
+
+El cache de tickets se actualiza automáticamente en cada ejecución del cron (4PM ET) y se almacena en KV con key `all_tickets`.
 
 ### Codificación de `targetDate`
 
@@ -65,9 +83,11 @@ El campo `value` del botón Submit contiene la fecha objetivo (ej: `2026-04-02`)
 - Cargar horas en **la fecha correcta** aunque el usuario haga clic un día después.
 - **Rechazar** la carga si la fecha actual ya no pertenece a la misma semana calendario ISO (Lunes–Domingo).
 
+El botón "➕ Agregar ticket" codifica `{slotCount}:{targetDate}` en su `value` para preservar el contexto.
+
 ### Reglas de Validación (Backend)
 
-Al recibir el submit, el backend ejecuta esta cadena de validaciones en orden:
+Al recibir el submit, el backend detecta dinámicamente la cantidad de slots desde `state.values` y ejecuta esta cadena de validaciones en orden:
 
 | # | Validación | Comportamiento si falla |
 |---|-----------|------------------------|
@@ -108,7 +128,8 @@ Agregar estos scopes:
 #### Interactivity & Shortcuts
 - **Activar Interactivity**
 - **Request URL**: `https://jira-time-tracker-bot.<tu-account>.workers.dev/slack/interactions`
-  _(actualizar después del deploy)_
+- **Options Load URL**: `https://jira-time-tracker-bot.<tu-account>.workers.dev/slack/options`
+  _(actualizar ambas URLs después del deploy)_
 
 #### Install to Workspace
 - Instalar la app y copiar:
@@ -214,9 +235,40 @@ wrangler secret put SLACK_SIGNING_SECRET
 wrangler deploy
 ```
 
-Después del deploy, actualizar la **Request URL** de Interactivity en la Slack App con:
+Después del deploy, actualizar las URLs en la Slack App:
+- **Request URL** (Interactivity): `https://jira-time-tracker-bot.<tu-subdomain>.workers.dev/slack/interactions`
+- **Options Load URL** (Interactivity): `https://jira-time-tracker-bot.<tu-subdomain>.workers.dev/slack/options`
+
+---
+
+## CI/CD con GitHub Actions
+
+El proyecto incluye un workflow de GitHub Actions con dos etapas:
+- `build`: corre en pushes y pull requests contra `master`, instala dependencias, ejecuta type-check y genera el bundle del Worker con `wrangler deploy --dry-run`
+- `deploy`: corre solo en pushes a `master` y únicamente si el job de build pasó
+
+### Configurar secretos en GitHub
+
+En tu repositorio → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**:
+
+| Secreto | Descripción | Cómo obtenerlo |
+|---------|------------|----------------|
+| `CLOUDFLARE_API_TOKEN` | Token API con permisos `Workers Scripts:Edit` | [Cloudflare Dashboard → API Tokens → Create Token](https://dash.cloudflare.com/profile/api-tokens) |
+| `CLOUDFLARE_ACCOUNT_ID` | ID de la cuenta Cloudflare | Cloudflare Dashboard → Overview (sidebar derecho) |
+
+> **Nota**: Los secretos de Jira y Slack no se necesitan en GitHub — ya están configurados en Cloudflare vía `wrangler secret put`.
+
+Variables y secretos recomendados:
+- GitHub `Secrets`: solo credenciales de CI/CD, por ejemplo `CLOUDFLARE_API_TOKEN` y `CLOUDFLARE_ACCOUNT_ID`
+- Cloudflare Worker Secrets: `JIRA_API_TOKEN`, `JIRA_USER_EMAIL`, `SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`, `USERS`, `JIRA_CONFIG`
+- `wrangler.toml`: valores no sensibles y estáticos, por ejemplo bindings, cron y `JIRA_BASE_URL` si no consideras ese dato sensible
+- GitHub `Variables`: solo si más adelante necesitas parámetros no sensibles exclusivos del pipeline; hoy no hacen falta
+
+### Flujo del workflow
+
 ```
-https://jira-time-tracker-bot.<tu-subdomain>.workers.dev/slack/interactions
+push/pull_request master → checkout → setup-node@20 → npm ci → tsc --noEmit → wrangler deploy --dry-run
+push master + build OK → wrangler deploy
 ```
 
 ---
@@ -269,8 +321,9 @@ jira-time-tracker-bot/
 │   ├── types/
 │   │   └── index.ts                # TypeScript interfaces
 │   ├── handlers/
-│   │   ├── cron.ts                 # 4PM ET notification logic
-│   │   └── slack-interaction.ts    # Slack webhook handler
+│   │   ├── cron.ts                 # 4PM ET notification logic + ticket cache
+│   │   ├── slack-interaction.ts    # Slack webhook handler (submit + add_slot)
+│   │   └── slack-options.ts        # external_select typeahead endpoint
 │   ├── services/
 │   │   ├── jira.ts                 # Jira REST API v3 client
 │   │   ├── slack.ts                # Slack Web API + KV cache
@@ -286,6 +339,9 @@ jira-time-tracker-bot/
 ├── tsconfig.json
 ├── package.json
 ├── .dev.vars.example               # Secret template
+├── .github/
+│   └── workflows/
+│       └── deploy.yml              # CI/CD: auto-deploy on push to main
 ├── .gitignore
 └── README.md
 ```
