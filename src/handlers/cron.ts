@@ -1,4 +1,5 @@
 import type { Env, JiraConfig, JiraUsers, SlackBlock, CachedTicket } from "../types/index.ts";
+import { CACHE_KEY_ALL_TICKETS, TTL_ALL_TICKETS } from "../constants.ts";
 import { loadConfig } from "../config.ts";
 import { getTodayET, getCurrentHourET, isFriday, getWeekBoundaries } from "../utils/date.ts";
 import { searchIssuesWithWorklogs, buildAccountIdEmailMap } from "../services/jira.ts";
@@ -53,14 +54,16 @@ export async function handleScheduled(env: Env): Promise<void> {
     }
   }
 
-  await env.CACHE.put("all_tickets", JSON.stringify(cachedTickets));
+  await env.CACHE.put(CACHE_KEY_ALL_TICKETS, JSON.stringify(cachedTickets), {
+    expirationTtl: TTL_ALL_TICKETS,
+  });
   console.log(`Cached ${cachedTickets.length} tickets in KV for typeahead`);
 
   // Build accountId → email mapping
   const accountEmailMap = await buildAccountIdEmailMap(env, issues);
 
   // Aggregate daily hours per user
-  const dailySummaries = aggregateUserHours(issues, accountEmailMap, today);
+  const dailySummaries = aggregateUserHours(issues, accountEmailMap, today, userEmails);
 
   // Aggregate weekly hours if Friday
   const weeklySummaries = friday

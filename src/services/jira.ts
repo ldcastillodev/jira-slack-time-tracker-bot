@@ -9,6 +9,7 @@ import type {
   JiraConfig,
   JiraUsers,
 } from "../types/index.ts";
+import { CACHE_KEY_ACCOUNT_MAP, TTL_ACCOUNT_MAP } from "../constants.ts";
 import { getWeekBoundaries } from "../utils/date.ts";
 
 // ─── Helpers ───
@@ -219,14 +220,14 @@ export async function fetchIssueSummary(
 
 /**
  * Builds a mapping of Jira accountId to email from the issues' assignees
- * and worklog authors. Caches in KV for 7 days.
+ * and worklog authors. Caches in KV for 24 hours.
+ * Fresh emails always overwrite cached entries to self-heal stale mappings.
  */
 export async function buildAccountIdEmailMap(
   env: Env,
   issues: JiraIssue[]
 ): Promise<Map<string, string>> {
-  const KV_KEY = "jira_account_map";
-  const cached = await env.CACHE.get(KV_KEY, "json");
+  const cached = await env.CACHE.get(CACHE_KEY_ACCOUNT_MAP, "json");
   const map = new Map<string, string>(
     cached ? Object.entries(cached as Record<string, string>) : []
   );
@@ -234,21 +235,27 @@ export async function buildAccountIdEmailMap(
   let updated = false;
 
   for (const issue of issues) {
-    if (issue.assigneeAccountId && issue.assigneeEmail && !map.has(issue.assigneeAccountId)) {
-      map.set(issue.assigneeAccountId, issue.assigneeEmail);
-      updated = true;
+    if (issue.assigneeAccountId && issue.assigneeEmail) {
+      const prev = map.get(issue.assigneeAccountId);
+      if (prev !== issue.assigneeEmail) {
+        map.set(issue.assigneeAccountId, issue.assigneeEmail);
+        updated = true;
+      }
     }
     for (const wl of issue.worklogs) {
-      if (wl.authorEmail && !map.has(wl.authorAccountId)) {
-        map.set(wl.authorAccountId, wl.authorEmail);
-        updated = true;
+      if (wl.authorEmail) {
+        const prev = map.get(wl.authorAccountId);
+        if (prev !== wl.authorEmail) {
+          map.set(wl.authorAccountId, wl.authorEmail);
+          updated = true;
+        }
       }
     }
   }
 
   if (updated) {
-    await env.CACHE.put(KV_KEY, JSON.stringify(Object.fromEntries(map)), {
-      expirationTtl: 7 * 24 * 3600,
+    await env.CACHE.put(CACHE_KEY_ACCOUNT_MAP, JSON.stringify(Object.fromEntries(map)), {
+      expirationTtl: TTL_ACCOUNT_MAP,
     });
   }
 

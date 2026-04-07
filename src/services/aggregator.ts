@@ -10,13 +10,14 @@ import type {
  *
  * @param issues  - All fetched Jira issues (with their worklogs)
  * @param accountEmailMap - Mapping of Jira accountId → email
- * @param userEmails - The configured user emails to pre-load
  * @param targetDate - yyyy-MM-dd string for the day to aggregate
+ * @param userEmails - Optional list of emails to pre-populate with 0 hours
  */
 export function aggregateUserHours(
   issues: JiraIssue[],
   accountEmailMap: Map<string, string>,
-  targetDate: string
+  targetDate: string,
+  userEmails?: string[]
 ): Map<string, UserHoursSummary> {
   const summaries = new Map<string, UserHoursSummary>();
   // Helper: Find the summary of a user or create it if it doesn't exist.
@@ -33,6 +34,13 @@ export function aggregateUserHours(
     }
     return summaries.get(lowerEmail)!;
   };
+
+  // 1. Pre-populate configured users with 0 hours so they always have an entry
+  if (userEmails) {
+    for (const email of userEmails) {
+      getOrCreateSummary(email);
+    }
+  }
 
   // 2. Add data by iterating over the tickets
   for (const issue of issues) {

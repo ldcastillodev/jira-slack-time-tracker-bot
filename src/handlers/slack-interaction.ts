@@ -1,4 +1,5 @@
 import type { Env, JiraConfig, JiraUsers, SlackInteractionPayload, SlotEntry, ExistingSelection } from "../types/index.ts";
+import { CACHE_KEY_SLACK_USER_PREFIX } from "../constants.ts";
 import { verifySlackSignature } from "../utils/crypto.ts";
 import { getTodayET, isSameCalendarWeek } from "../utils/date.ts";
 import { loadConfig } from "../config.ts";
@@ -197,7 +198,7 @@ async function processSubmitHours(
     const jiraConfig = JSON.parse(env.JIRA_CONFIG) as JiraConfig;
     const issues = await searchIssuesWithWorklogs(env, userEmail);
     const accountEmailMap = await buildAccountIdEmailMap(env, issues);
-    const summaries = aggregateUserHours(issues, accountEmailMap, targetDate);
+    const summaries = aggregateUserHours(issues, accountEmailMap, targetDate, [userEmail]);
     const currentSummary = summaries.get(userEmail.toLowerCase());
     const currentTotal = currentSummary?.totalHours ?? 0;
 
@@ -254,7 +255,7 @@ async function processSubmitHours(
     // ── 11. Build confirmation ──
     const updatedIssues = await searchIssuesWithWorklogs(env, userEmail);
     const updatedAccountMap = await buildAccountIdEmailMap(env, updatedIssues);
-    const updatedSummaries = aggregateUserHours(updatedIssues, updatedAccountMap, targetDate);
+    const updatedSummaries = aggregateUserHours(updatedIssues, updatedAccountMap, targetDate, [userEmail]);
     const updatedSummary = updatedSummaries.get(userEmail.toLowerCase());
 
     if (!updatedSummary) {
@@ -360,7 +361,7 @@ async function processAddSlot(
     // Fetch fresh data for the user
     const issues = await searchIssuesWithWorklogs(env, userEmail);
     const accountEmailMap = await buildAccountIdEmailMap(env, issues);
-    const summaries = aggregateUserHours(issues, accountEmailMap, targetDate);
+    const summaries = aggregateUserHours(issues, accountEmailMap, targetDate, [userEmail]);
     const summary = summaries.get(userEmail.toLowerCase());
 
     if (!summary) {
@@ -395,7 +396,7 @@ async function resolveEmailFromSlackId(
 ): Promise<string | null> {
   // Check KV cache for each email → slackId mapping
   for (const email of configuredEmails) {
-    const cached = await env.CACHE.get(`slack_user:${email}`);
+    const cached = await env.CACHE.get(`${CACHE_KEY_SLACK_USER_PREFIX}${email}`);
     if (cached === slackUserId) {
       return email;
     }

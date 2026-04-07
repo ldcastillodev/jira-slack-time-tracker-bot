@@ -1,4 +1,5 @@
 import type { Env, CachedTicket, JiraConfig, SlackOption, SlackOptionGroup } from "../types/index.ts";
+import { CACHE_KEY_ALL_TICKETS } from "../constants.ts";
 import { verifySlackSignature } from "../utils/crypto.ts";
 
 const MAX_OPTIONS = 100;
@@ -39,7 +40,7 @@ export async function handleSlackOptions(
   const jiraConfig = JSON.parse(env.JIRA_CONFIG) as JiraConfig;
 
   // Read cached tickets from KV
-  const cachedRaw = await env.CACHE.get("all_tickets");
+  const cachedRaw = await env.CACHE.get(CACHE_KEY_ALL_TICKETS);
   let allTickets: CachedTicket[] = [];
 
   if (cachedRaw) {
