@@ -1,4 +1,10 @@
-import type { Env, CachedTicket, JiraConfig, SlackOption, SlackOptionGroup } from "../types/index.ts";
+import type {
+  Env,
+  CachedTicket,
+  JiraConfig,
+  SlackOption,
+  SlackOptionGroup,
+} from "../types/index.ts";
 import { CACHE_KEY_ALL_TICKETS } from "../constants.ts";
 import { verifySlackSignature } from "../utils/crypto.ts";
 
@@ -8,10 +14,7 @@ const MAX_OPTIONS = 100;
  * Handles Slack `block_suggestion` payloads for external_select typeahead.
  * Reads cached tickets from KV and filters by the user's query string.
  */
-export async function handleSlackOptions(
-  request: Request,
-  env: Env,
-): Promise<Response> {
+export async function handleSlackOptions(request: Request, env: Env): Promise<Response> {
   const rawBody = await request.text();
 
   // Verify Slack signature
@@ -41,7 +44,7 @@ export async function handleSlackOptions(
 
   // Read cached tickets from KV
   const cachedRaw = await env.CACHE.get(CACHE_KEY_ALL_TICKETS);
-  let allTickets: CachedTicket[] = [];
+  let allTickets: CachedTicket[];
 
   if (cachedRaw) {
     allTickets = JSON.parse(cachedRaw) as CachedTicket[];

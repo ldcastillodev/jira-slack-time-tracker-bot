@@ -21,7 +21,9 @@ export async function handleScheduled(env: Env): Promise<void> {
 
   // Only execute at the configured hour in ET (handles DST automatically)
   if (currentHourET !== config.tracking.cronHourET) {
-    console.log(`Skipping: current ET hour is ${currentHourET}, configured is ${config.tracking.cronHourET}`);
+    console.log(
+      `Skipping: current ET hour is ${currentHourET}, configured is ${config.tracking.cronHourET}`,
+    );
     return;
   }
 
@@ -75,7 +77,7 @@ export async function handleScheduled(env: Env): Promise<void> {
   for (const email of userEmails) {
     const lowerEmail = email.toLowerCase();
     const dailySummary = dailySummaries.get(lowerEmail);
-    console.log(dailySummary)
+    console.log(dailySummary);
     if (!dailySummary) {
       console.error(`No summary found for ${email}`);
       continue;
@@ -89,7 +91,7 @@ export async function handleScheduled(env: Env): Promise<void> {
     }
 
     // Build message based on day of week
-    let blocks: SlackBlock[] = [];
+    const blocks: SlackBlock[] = [];
     if (friday && weeklySummaries) {
       const weeklySummary = weeklySummaries.get(lowerEmail);
       if (weeklySummary) {
