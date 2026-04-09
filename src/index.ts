@@ -37,7 +37,11 @@ export default {
   /**
    * Cron trigger handler — fires on the configured schedule.
    */
-  async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+  async scheduled(
+    _controller: ScheduledController,
+    env: Env,
+    ctx: ExecutionContext,
+  ): Promise<void> {
     ctx.waitUntil(handleScheduled(env));
   },
 };

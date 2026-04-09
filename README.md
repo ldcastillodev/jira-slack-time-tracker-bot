@@ -10,11 +10,11 @@ Every weekday at **4:00 PM ET**, the bot:
 2. Calculates the hours logged by each person for the day.
 3. Sends a direct message (DM) in Slack to each configured user with:
 
-| Scenario | Behavior |
-|----------|----------|
+| Scenario        | Behavior                                                                                                                                                                                                                                                                                                                          |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **< 8h logged** | Shows the breakdown + **dynamic interactive slots** (3 by default, expandable up to 10 with the "➕ Add ticket" button) to log hours in multiple tickets at once (0.5h intervals). Tickets are searched with typeahead (no 100 limit). Validates duplicates, partial data, daily limit, and stale data against Jira in real time. |
-| **= 8h logged** | Shows only the breakdown as confirmation. No interactive options. |
-| **Friday** | In addition to the daily report, includes a weekly summary with the total vs. the 40h goal and a day-by-day breakdown. |
+| **= 8h logged** | Shows only the breakdown as confirmation. No interactive options.                                                                                                                                                                                                                                                                 |
+| **Friday**      | In addition to the daily report, includes a weekly summary with the total vs. the 40h goal and a day-by-day breakdown.                                                                                                                                                                                                            |
 
 ---
 
@@ -61,16 +61,19 @@ Every weekday at **4:00 PM ET**, the bot:
 ### Interface
 
 When a user has less than 8h logged, the Slack message renders **3 initial slots**, expandable up to **10** with the **"➕ Add ticket"** button. Each slot contains:
+
 - An `external_select` with typeahead search to pick a ticket (no 100 limit)
 - A `static_select` to pick hours (0.5h intervals)
 
 Available buttons:
+
 - **"✅ Log hours"** — Submits all complete slots
 - **"➕ Add ticket"** — Adds an extra slot, preserving existing selections
 
 ### Ticket Search (external_select)
 
 Ticket selectors use `external_select` with `min_query_length: 0`, meaning:
+
 - Clicking the selector shows the most relevant tickets (generic + project)
 - Typing filters dynamically by key or summary
 - No 100-ticket limit (search filters from the full cache)
@@ -81,6 +84,7 @@ The ticket cache updates automatically on each cron run (4PM ET) and is stored i
 ### `targetDate` Encoding
 
 The Submit button's `value` field contains the target date (e.g., `2026-04-02`) for which the alert was generated. This allows:
+
 - Logging hours for **the correct date** even if the user clicks a day later.
 - **Rejecting** the log if the current date is no longer in the same ISO calendar week (Monday–Sunday).
 
@@ -90,15 +94,15 @@ The "➕ Add ticket" button encodes `{slotCount}:{targetDate}` in its `value` to
 
 On submit, the backend dynamically detects the number of slots from `state.values` and runs this validation chain in order:
 
-| # | Validation | Behavior if fails |
-|---|------------|-------------------|
-| 1 | **Calendar week** — `targetDate` must be in the same ISO week as the current date (ET) | Replaces the message with a period expired notice |
-| 2 | **Partial data** — Each slot must have both fields (ticket + hours) or be empty | Error indicating which slot(s) are incomplete |
-| 3 | **At least 1 slot** — At least one complete slot is required | Error requesting at least one complete slot |
-| 4 | **Duplicate tickets** — Same ticket not allowed in more than one slot | Error indicating duplication |
-| 5 | **Sum vs. limit** — Total submitted must not exceed `dailyTarget` (8h) | Error with the submitted total |
-| 6 | **Stale-data guard** — Jira is re-fetched for actual hours. `actualHours + submittedTotal ≤ dailyTarget` | Replaces message with real balance and new interactive slots |
-| 7 | **POST worklogs** — Worklogs are sent one by one | If any fail, reports which and confirms the successful ones |
+| #   | Validation                                                                                               | Behavior if fails                                            |
+| --- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| 1   | **Calendar week** — `targetDate` must be in the same ISO week as the current date (ET)                   | Replaces the message with a period expired notice            |
+| 2   | **Partial data** — Each slot must have both fields (ticket + hours) or be empty                          | Error indicating which slot(s) are incomplete                |
+| 3   | **At least 1 slot** — At least one complete slot is required                                             | Error requesting at least one complete slot                  |
+| 4   | **Duplicate tickets** — Same ticket not allowed in more than one slot                                    | Error indicating duplication                                 |
+| 5   | **Sum vs. limit** — Total submitted must not exceed `dailyTarget` (8h)                                   | Error with the submitted total                               |
+| 6   | **Stale-data guard** — Jira is re-fetched for actual hours. `actualHours + submittedTotal ≤ dailyTarget` | Replaces message with real balance and new interactive slots |
+| 7   | **POST worklogs** — Worklogs are sent one by one                                                         | If any fail, reports which and confirms the successful ones  |
 
 ---
 
@@ -121,18 +125,22 @@ On submit, the backend dynamically detects the number of slots from `state.value
 3. Select your workspace
 
 #### Bot Token Scopes (OAuth & Permissions)
+
 Add these scopes:
+
 - `chat:write` — Send messages
 - `users:read.email` — Lookup users by email
 - `im:write` — Open DMs with users
 
 #### Interactivity & Shortcuts
+
 - **Enable Interactivity**
 - **Request URL**: `https://jira-time-tracker-bot.<your-account>.workers.dev/slack/interactions`
 - **Options Load URL**: `https://jira-time-tracker-bot.<your-account>.workers.dev/slack/options`
   _(update both URLs after deploy)_
 
 #### Install to Workspace
+
 - Install the app and copy:
   - **Bot User OAuth Token** (`xoxb-...`) → will be `SLACK_BOT_TOKEN`
   - **Signing Secret** (in Basic Information) → will be `SLACK_SIGNING_SECRET`
@@ -158,6 +166,7 @@ cp .dev.vars.example .dev.vars
 ```
 
 Edit `.dev.vars` with your real values:
+
 ```env
 JIRA_API_TOKEN=ATATT3xFfGF0...
 JIRA_USER_EMAIL=your.email@company.com
@@ -184,21 +193,18 @@ Edit `config/tracker-config.json`:
     "timezone": "America/New_York",
     "cronHourET": 16
   },
-  "users": [
-    "john.doe@applydigital.com",
-    "jane.smith@applydigital.com"
-  ]
+  "users": ["john.doe@applydigital.com", "jane.smith@applydigital.com"]
 }
 ```
 
-| Field | Description |
-|-------|-------------|
-| `jira.boards` | Jira project keys to search for worklogs |
-| `jira.genericTickets` | Predefined tickets always shown in the dropdown (must exist in Jira) |
-| `tracking.dailyTarget` | Daily hour goal (default: 8) |
-| `tracking.weeklyTarget` | Weekly hour goal (default: 40) |
-| `tracking.cronHourET` | ET hour for notifications (default: 16 = 4PM) |
-| `users` | List of emails to receive notifications |
+| Field                   | Description                                                          |
+| ----------------------- | -------------------------------------------------------------------- |
+| `jira.boards`           | Jira project keys to search for worklogs                             |
+| `jira.genericTickets`   | Predefined tickets always shown in the dropdown (must exist in Jira) |
+| `tracking.dailyTarget`  | Daily hour goal (default: 8)                                         |
+| `tracking.weeklyTarget` | Weekly hour goal (default: 40)                                       |
+| `tracking.cronHourET`   | ET hour for notifications (default: 16 = 4PM)                        |
+| `users`                 | List of emails to receive notifications                              |
 
 ### 5. Create KV namespace
 
@@ -214,6 +220,7 @@ wrangler kv namespace create CACHE --preview
 ```
 
 Copy the generated IDs and update `wrangler.toml`:
+
 ```toml
 [[kv_namespaces]]
 binding = "CACHE"
@@ -237,6 +244,7 @@ wrangler deploy
 ```
 
 After deploy, update the URLs in the Slack App:
+
 - **Request URL** (Interactivity): `https://jira-time-tracker-bot.<your-subdomain>.workers.dev/slack/interactions`
 - **Options Load URL** (Interactivity): `https://jira-time-tracker-bot.<your-subdomain>.workers.dev/slack/options`
 
@@ -246,11 +254,11 @@ After deploy, update the URLs in the Slack App:
 
 The project includes three GitHub Actions workflows:
 
-| Workflow | Trigger | Steps | Deploy? |
-|----------|---------|-------|---------|
-| `pr.yaml` | PR to `master` | Lint → Test → Build (dry-run) | No |
-| `deploy-production.yaml` | Push/merge to `master` | Lint → Test → Type Check → Deploy | Yes (production) |
-| `deploy-test.yaml` | Push/merge to `develop` | Lint → Test → Type Check → Deploy | Yes (test) |
+| Workflow                 | Trigger                 | Steps                             | Deploy?          |
+| ------------------------ | ----------------------- | --------------------------------- | ---------------- |
+| `pr.yaml`                | PR to `master`          | Lint → Test → Build (dry-run)     | No               |
+| `deploy-production.yaml` | Push/merge to `master`  | Lint → Test → Type Check → Deploy | Yes (production) |
+| `deploy-test.yaml`       | Push/merge to `develop` | Lint → Test → Type Check → Deploy | Yes (test)       |
 
 **Rule**: No deploy ever runs unless lint, tests, and build pass first.
 
@@ -258,14 +266,15 @@ The project includes three GitHub Actions workflows:
 
 In your repo → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**:
 
-| Secret | Description | How to get it |
-|--------|-------------|--------------|
-| `CLOUDFLARE_API_TOKEN` | API token with `Workers Scripts:Edit` permissions | [Cloudflare Dashboard → API Tokens → Create Token](https://dash.cloudflare.com/profile/api-tokens) |
-| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account ID | Cloudflare Dashboard → Overview (right sidebar) |
+| Secret                  | Description                                       | How to get it                                                                                      |
+| ----------------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `CLOUDFLARE_API_TOKEN`  | API token with `Workers Scripts:Edit` permissions | [Cloudflare Dashboard → API Tokens → Create Token](https://dash.cloudflare.com/profile/api-tokens) |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account ID                             | Cloudflare Dashboard → Overview (right sidebar)                                                    |
 
 > **Note**: Jira and Slack secrets are not needed in GitHub — they're set in Cloudflare via `wrangler secret put`.
 
 Recommended variables and secrets:
+
 - GitHub `Secrets`: only CI/CD credentials, e.g. `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`
 - Cloudflare Worker Secrets: `JIRA_API_TOKEN`, `JIRA_USER_EMAIL`, `SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`, `USERS`, `JIRA_CONFIG`
 - `wrangler.toml`: non-sensitive, static values, e.g. bindings, cron, and `JIRA_BASE_URL` if not sensitive
@@ -351,6 +360,7 @@ npm run format
 The project uses **Husky** + **lint-staged** to automatically lint and format staged files before each commit.
 
 **What runs on commit:**
+
 1. `eslint --fix` on staged `.ts` files
 2. `prettier --write` on staged `.ts` files
 3. `tsc --noEmit` (full type check)
@@ -405,6 +415,7 @@ wrangler dev
 ```
 
 ### Manually trigger cron
+
 ```bash
 # Using the test endpoint (ignores ET hour validation)
 curl -X POST http://localhost:8787/trigger
@@ -426,6 +437,7 @@ ngrok http 8787
 ```
 
 ### Health check
+
 ```bash
 curl http://localhost:8787/health
 # → OK
@@ -489,11 +501,11 @@ jira-time-tracker-bot/
 
 All KV cache keys and TTLs are centralized in `src/constants.ts`.
 
-| KV Key | TTL | Content | Written by |
-|--------|-----|---------|------------|
-| `all_tickets` | 24 hours | Full ticket list for typeahead | Cron (4PM ET) |
-| `jira_account_map` | 24 hours | Jira `accountId` → email mapping | Cron + interactions |
-| `slack_user:{email}` | 7 days | Slack user ID for each email | Lazy on first send |
+| KV Key               | TTL      | Content                          | Written by          |
+| -------------------- | -------- | -------------------------------- | ------------------- |
+| `all_tickets`        | 24 hours | Full ticket list for typeahead   | Cron (4PM ET)       |
+| `jira_account_map`   | 24 hours | Jira `accountId` → email mapping | Cron + interactions |
+| `slack_user:{email}` | 7 days   | Slack user ID for each email     | Lazy on first send  |
 
 ### Invalidation rules
 
@@ -504,6 +516,7 @@ All KV cache keys and TTLs are centralized in `src/constants.ts`.
 ### Consistency in Cloudflare Workers KV
 
 KV has eventual consistency (~60 s global propagation). This does **not** affect correctness because:
+
 - **Hours are never cached in KV.** Every validation and confirmation reads directly from the Jira API.
 - Cache writes return the in-memory `Map` to the same request, so the issuing Worker sees its own writes immediately.
 
@@ -512,31 +525,37 @@ KV has eventual consistency (~60 s global propagation). This does **not** affect
 ## Troubleshooting
 
 ### Bot doesn't send messages / "No summary found" error
+
 - Check that emails in `config/tracker-config.json` exactly match Slack and Jira emails
 - The aggregator pre-populates all configured emails with 0 hours, so even users with no worklogs will always get a message. If this error still appears, check that the email is in the `USERS` secret.
 - Check logs: `wrangler tail`
 - Check that the Slack App has the required scopes and is installed in the workspace
 
 ### Bot reports stale hours after logging (e.g. shows 5h after logging 8h)
+
 - This was caused by the `jira_account_map` using an append-only merge strategy that prevented email mappings from being updated. Fixed: the map now always overwrites with the latest email from Jira.
 - If the issue persists, manually delete the `jira_account_map` key via the Cloudflare KV dashboard. It will be rebuilt on the next cron run or user interaction.
 - Note: hours are always fetched fresh from the Jira API — they are never stored in KV.
 
 ### 401 error on Slack interactions
+
 - Check that `SLACK_SIGNING_SECRET` is correct (in Slack App Basic Information, NOT the Bot Token)
 - Check that the Interactivity Request URL points to the correct Worker
 
 ### Hours not logged in Jira
+
 - Check that `JIRA_API_TOKEN` is valid and not expired
 - The email in `JIRA_USER_EMAIL` must have write permissions in the configured projects
 - Generic tickets (`genericTickets`) must exist in Jira
 
 ### Cron doesn't run at 4PM ET
+
 - The Worker uses two UTC cron triggers (20:00 and 21:00) to cover EDT and EST
 - Only one runs the logic based on the real ET hour
 - Check with `wrangler tail` that the cron is firing
 
 ### Free tier subrequest limit
+
 - Free tier allows 50 subrequests per invocation
 - If your team has many users or tickets, consider upgrading to Paid ($5/month → 10K subrequests)
 
@@ -544,12 +563,12 @@ KV has eventual consistency (~60 s global propagation). This does **not** affect
 
 ## Costs
 
-| Component | Free Tier | When to pay |
-|-----------|-----------|-------------|
-| Cloudflare Worker | 100K req/day | >100K req/day → $5/month |
-| KV Reads | 100K/day | >100K/day |
-| KV Writes | 1K/day | >1K/day |
-| Cron Triggers | 5 (we use 2) | >5 |
-| CPU Time (cron) | 10ms | If exceeded → $5/month plan gives 30s |
+| Component         | Free Tier    | When to pay                           |
+| ----------------- | ------------ | ------------------------------------- |
+| Cloudflare Worker | 100K req/day | >100K req/day → $5/month              |
+| KV Reads          | 100K/day     | >100K/day                             |
+| KV Writes         | 1K/day       | >1K/day                               |
+| Cron Triggers     | 5 (we use 2) | >5                                    |
+| CPU Time (cron)   | 10ms         | If exceeded → $5/month plan gives 30s |
 
 For a team of up to ~20 people, the free tier should be enough.

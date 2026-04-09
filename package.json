@@ -13,8 +13,8 @@
     "test:coverage": "vitest run --coverage",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",
-    "format:check": "prettier --check \"src/**/*.ts\" \"tests/**/*.ts\"",
+    "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\" \"config/**/*.json\" \".github/workflows/**/*.{yml,yaml}\" \"*.{json,md}\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"tests/**/*.ts\" \"config/**/*.json\" \".github/workflows/**/*.{yml,yaml}\" \"*.{json,md}\"",
     "prepare": "husky"
   },
   "lint-staged": {

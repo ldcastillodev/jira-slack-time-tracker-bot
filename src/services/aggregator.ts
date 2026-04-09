@@ -1,8 +1,4 @@
-import type {
-  JiraIssue,
-  UserHoursSummary,
-  WeeklyBreakdown,
-} from "../types/index.ts";
+import type { JiraIssue, UserHoursSummary, WeeklyBreakdown } from "../types/index.ts";
 
 /**
  * Aggregates daily hours. Configured users are pre-loaded (to show 0 hours if inactive),
@@ -17,7 +13,7 @@ export function aggregateUserHours(
   issues: JiraIssue[],
   accountEmailMap: Map<string, string>,
   targetDate: string,
-  userEmails?: string[]
+  userEmails?: string[],
 ): Map<string, UserHoursSummary> {
   const summaries = new Map<string, UserHoursSummary>();
   // Helper: Find the summary of a user or create it if it doesn't exist.
@@ -65,7 +61,7 @@ export function aggregateUserHours(
       // Find which user this worklog belongs to
       const summary = getOrCreateSummary(authorEmail, wl.authorDisplayName);
       const hours = wl.timeSpentSeconds / 3600;
-      
+
       // Find or create the ticket entry
       const existing = summary.workedTickets.find((t) => t.key === issue.key);
       if (existing) {
@@ -101,7 +97,7 @@ export function aggregateWeeklyHours(
   accountEmailMap: Map<string, string>,
   userEmails: string[],
   weekMonday: string,
-  weekFriday: string
+  weekFriday: string,
 ): Map<string, WeeklyBreakdown> {
   // Build list of weekdays (Monday to Friday)
   const weekDates = getWeekDates(weekMonday, weekFriday);
@@ -143,7 +139,7 @@ export function aggregateWeeklyHours(
 
       // find the user summary or create it if not exists
       const breakdown = getOrCreateBreakdown(authorEmail, wl.authorDisplayName);
-      const hours = wl.timeSpentSeconds / 3600; 
+      const hours = wl.timeSpentSeconds / 3600;
       breakdown.weekTotal += hours;
 
       // Update display name
@@ -154,7 +150,7 @@ export function aggregateWeeklyHours(
       // Find the day entry
       const dayEntry = breakdown.days.find((d) => d.date === wlDate);
       if (dayEntry) {
-        dayEntry.totalHours += hours;   
+        dayEntry.totalHours += hours;
         // sum hours if the ticket already exists that day, or add it
         const existing = dayEntry.tickets.find((t) => t.key === issue.key);
         if (existing) {

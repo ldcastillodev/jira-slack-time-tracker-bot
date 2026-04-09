@@ -194,10 +194,7 @@ function buildInteractiveSection(
 
 // ─── Weekly Summary ───
 
-function buildWeeklySummaryBlocks(
-  weekly: WeeklyBreakdown,
-  weeklyTarget: number
-): SlackBlock[] {
+function buildWeeklySummaryBlocks(weekly: WeeklyBreakdown, weeklyTarget: number): SlackBlock[] {
   const blocks: SlackBlock[] = [];
 
   blocks.push({ type: "divider" });
@@ -244,13 +241,11 @@ function buildWeeklySummaryBlocks(
 export function buildConfirmationMessage(
   entries: { ticketKey: string; hours: number }[],
   updatedSummary: UserHoursSummary,
-  dailyTarget: number
+  dailyTarget: number,
 ): SlackBlock[] {
   const blocks: SlackBlock[] = [];
 
-  const lines = entries
-    .map((e) => `• *${e.hours.toFixed(1)}h* en \`${e.ticketKey}\``)
-    .join("\n");
+  const lines = entries.map((e) => `• *${e.hours.toFixed(1)}h* en \`${e.ticketKey}\``).join("\n");
 
   blocks.push({
     type: "section",
@@ -300,7 +295,16 @@ export function buildDailyMessage(
   const blocks = buildHoursBreakdown(summary, config.tracking.dailyTarget);
 
   if (summary.totalHours < config.tracking.dailyTarget) {
-    blocks.push(...buildInteractiveSection(summary, config, targetDate, jiraConfig, slotCount, existingSelections));
+    blocks.push(
+      ...buildInteractiveSection(
+        summary,
+        config,
+        targetDate,
+        jiraConfig,
+        slotCount,
+        existingSelections,
+      ),
+    );
   }
 
   return blocks;
