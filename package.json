@@ -5,7 +5,7 @@
   "scripts": {
     "check": "tsc --noEmit",
     "build": "wrangler deploy --dry-run",
-    "dev": "wrangler dev",
+    "dev": "wrangler dev --env-file .env.dev",
     "deploy": "wrangler deploy",
     "tail": "wrangler tail",
     "test": "vitest run",
