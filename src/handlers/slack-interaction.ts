@@ -1,13 +1,16 @@
-import type { Env, JiraConfig, JiraUsers, SlackInteractionPayload, SlotEntry, ExistingSelection } from "../types/index.ts";
+import type {
+  Env,
+  JiraConfig,
+  JiraUsers,
+  SlackInteractionPayload,
+  SlotEntry,
+  ExistingSelection,
+} from "../types/index.ts";
 import { CACHE_KEY_SLACK_USER_PREFIX } from "../constants.ts";
 import { verifySlackSignature } from "../utils/crypto.ts";
 import { getTodayET, isSameCalendarWeek } from "../utils/date.ts";
 import { loadConfig } from "../config.ts";
-import {
-  searchIssuesWithWorklogs,
-  buildAccountIdEmailMap,
-  postWorklog,
-} from "../services/jira.ts";
+import { searchIssuesWithWorklogs, buildAccountIdEmailMap, postWorklog } from "../services/jira.ts";
 import { sendDirectMessage, updateMessageViaResponseUrl } from "../services/slack.ts";
 import { aggregateUserHours } from "../services/aggregator.ts";
 import { buildConfirmationMessage, buildDailyMessage } from "../builders/message-builder.ts";
@@ -19,7 +22,7 @@ import { buildConfirmationMessage, buildDailyMessage } from "../builders/message
 export async function handleSlackInteraction(
   request: Request,
   env: Env,
-  ctx: ExecutionContext
+  ctx: ExecutionContext,
 ): Promise<Response> {
   // Read raw body for signature verification
   const rawBody = await request.text();
@@ -81,10 +84,7 @@ export async function handleSlackInteraction(
  * 6. Posts worklogs to Jira
  * 7. Sends updated confirmation via response_url
  */
-async function processSubmitHours(
-  payload: SlackInteractionPayload,
-  env: Env
-): Promise<void> {
+async function processSubmitHours(payload: SlackInteractionPayload, env: Env): Promise<void> {
   const config = loadConfig();
   const responseUrl = payload.response_url;
 
@@ -112,7 +112,7 @@ async function processSubmitHours(
           },
         ],
         `Período expirado. Este mensaje era para el ${targetDate}.`,
-        true
+        true,
       );
       return;
     }
@@ -139,7 +139,10 @@ async function processSubmitHours(
         const ticketKey = ticketSel!.value;
         const hours = parseFloat(hoursSel!.value);
         if (ticketKey === "none" || isNaN(hours) || hours <= 0) {
-          await sendError(responseUrl, `⚠️ Ranura ${i + 1}: selección inválida. Por favor revisa y vuelve a intentar.`);
+          await sendError(
+            responseUrl,
+            `⚠️ Ranura ${i + 1}: selección inválida. Por favor revisa y vuelve a intentar.`,
+          );
           return;
         }
         validSlots.push({ ticketKey, hours });
@@ -155,14 +158,17 @@ async function processSubmitHours(
       const slotList = partialSlots.join(", ");
       await sendError(
         responseUrl,
-        `⚠️ La(s) ranura(s) *${slotList}* tiene(n) datos incompletos. Debes seleccionar *ticket y horas* en cada ranura que uses, o dejar ambas vacías.`
+        `⚠️ La(s) ranura(s) *${slotList}* tiene(n) datos incompletos. Debes seleccionar *ticket y horas* en cada ranura que uses, o dejar ambas vacías.`,
       );
       return;
     }
 
     // ── 5. At least one valid slot ──
     if (validSlots.length === 0) {
-      await sendError(responseUrl, "⚠️ No seleccionaste ningún ticket ni horas. Completa al menos una ranura.");
+      await sendError(
+        responseUrl,
+        "⚠️ No seleccionaste ningún ticket ni horas. Completa al menos una ranura.",
+      );
       return;
     }
 
@@ -170,7 +176,10 @@ async function processSubmitHours(
     const ticketKeys = validSlots.map((s) => s.ticketKey);
     const uniqueKeys = new Set(ticketKeys);
     if (uniqueKeys.size !== ticketKeys.length) {
-      await sendError(responseUrl, "⚠️ No puedes seleccionar el mismo ticket en más de una ranura.");
+      await sendError(
+        responseUrl,
+        "⚠️ No puedes seleccionar el mismo ticket en más de una ranura.",
+      );
       return;
     }
 
@@ -179,7 +188,7 @@ async function processSubmitHours(
     if (submittedTotal > config.tracking.dailyTarget) {
       await sendError(
         responseUrl,
-        `⚠️ El total enviado (*${submittedTotal.toFixed(1)}h*) supera el límite diario de ${config.tracking.dailyTarget}h.`
+        `⚠️ El total enviado (*${submittedTotal.toFixed(1)}h*) supera el límite diario de ${config.tracking.dailyTarget}h.`,
       );
       return;
     }
@@ -190,7 +199,10 @@ async function processSubmitHours(
     const userEmails = Object.keys(users);
     const userEmail = await resolveEmailFromSlackId(env, slackUserId, userEmails);
     if (!userEmail) {
-      await sendError(responseUrl, "⚠️ No se pudo identificar tu usuario. Contacta al administrador.");
+      await sendError(
+        responseUrl,
+        "⚠️ No se pudo identificar tu usuario. Contacta al administrador.",
+      );
       return;
     }
 
@@ -228,7 +240,7 @@ async function processSubmitHours(
         responseUrl,
         [warningBlock, { type: "divider" }, ...freshBlocks],
         `Datos desactualizados. Ya tienes ${currentTotal.toFixed(1)}h. Solo puedes agregar ${remaining.toFixed(1)}h más.`,
-        true
+        true,
       );
       return;
     }
@@ -248,14 +260,19 @@ async function processSubmitHours(
     }
 
     if (succeeded.length === 0) {
-      await sendError(responseUrl, "❌ Error al cargar horas en Jira. Por favor intenta de nuevo o carga manualmente.");
+      await sendError(
+        responseUrl,
+        "❌ Error al cargar horas en Jira. Por favor intenta de nuevo o carga manualmente.",
+      );
       return;
     }
 
     // ── 11. Build confirmation ──
     const updatedIssues = await searchIssuesWithWorklogs(env, userEmail);
     const updatedAccountMap = await buildAccountIdEmailMap(env, updatedIssues);
-    const updatedSummaries = aggregateUserHours(updatedIssues, updatedAccountMap, targetDate, [userEmail]);
+    const updatedSummaries = aggregateUserHours(updatedIssues, updatedAccountMap, targetDate, [
+      userEmail,
+    ]);
     const updatedSummary = updatedSummaries.get(userEmail.toLowerCase());
 
     if (!updatedSummary) {
@@ -266,7 +283,7 @@ async function processSubmitHours(
     const confirmBlocks = buildConfirmationMessage(
       succeeded,
       updatedSummary,
-      config.tracking.dailyTarget
+      config.tracking.dailyTarget,
     );
 
     // If some slots failed, append a warning
@@ -301,7 +318,7 @@ async function processSubmitHours(
       responseUrl,
       confirmBlocks,
       `✅ ${totalAdded.toFixed(1)}h cargadas en ${succeeded.length} ticket(s). Total: ${updatedSummary.totalHours.toFixed(1)}h`,
-      true
+      true,
     );
   } catch (err) {
     console.error("Error processing submit_hours:", err);
@@ -315,10 +332,7 @@ async function processSubmitHours(
  * 2. Extracts existing selections from state
  * 3. Rebuilds the message with one additional slot, preserving selections
  */
-async function processAddSlot(
-  payload: SlackInteractionPayload,
-  env: Env,
-): Promise<void> {
+async function processAddSlot(payload: SlackInteractionPayload, env: Env): Promise<void> {
   const config = loadConfig();
   const responseUrl = payload.response_url;
 
@@ -354,7 +368,10 @@ async function processAddSlot(
     const userEmail = await resolveEmailFromSlackId(env, slackUserId, userEmails);
 
     if (!userEmail) {
-      await sendError(responseUrl, "⚠️ No se pudo identificar tu usuario. Contacta al administrador.");
+      await sendError(
+        responseUrl,
+        "⚠️ No se pudo identificar tu usuario. Contacta al administrador.",
+      );
       return;
     }
 
@@ -371,7 +388,14 @@ async function processAddSlot(
 
     // Build message with one more slot
     const newSlotCount = currentSlotCount + 1;
-    const freshBlocks = buildDailyMessage(summary, config, targetDate, jiraConfig, newSlotCount, existingSelections);
+    const freshBlocks = buildDailyMessage(
+      summary,
+      config,
+      targetDate,
+      jiraConfig,
+      newSlotCount,
+      existingSelections,
+    );
 
     await updateMessageViaResponseUrl(
       responseUrl,
@@ -381,7 +405,10 @@ async function processAddSlot(
     );
   } catch (err) {
     console.error("Error processing add_slot:", err);
-    await sendError(responseUrl, "❌ Ocurrió un error al agregar la ranura. Por favor intenta de nuevo.");
+    await sendError(
+      responseUrl,
+      "❌ Ocurrió un error al agregar la ranura. Por favor intenta de nuevo.",
+    );
   }
 }
 
@@ -392,7 +419,7 @@ async function processAddSlot(
 async function resolveEmailFromSlackId(
   env: Env,
   slackUserId: string,
-  configuredEmails: string[]
+  configuredEmails: string[],
 ): Promise<string | null> {
   // Check KV cache for each email → slackId mapping
   for (const email of configuredEmails) {
@@ -414,6 +441,6 @@ async function sendError(responseUrl: string, message: string): Promise<void> {
       },
     ],
     message.replace(/[*_`]/g, ""),
-    false
+    false,
   );
 }

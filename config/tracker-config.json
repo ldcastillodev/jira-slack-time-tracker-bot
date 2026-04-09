@@ -1,8 +1,8 @@
 {
-	"tracking": {
-		"dailyTarget": 8,
-		"weeklyTarget": 40,
-		"timezone": "America/New_York",
-		"cronHourET": 16
-	}
+  "tracking": {
+    "dailyTarget": 8,
+    "weeklyTarget": 40,
+    "timezone": "America/New_York",
+    "cronHourET": 16
+  }
 }

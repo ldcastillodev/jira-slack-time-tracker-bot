@@ -8,7 +8,7 @@ export async function verifySlackSignature(
   signingSecret: string,
   signature: string,
   timestamp: string,
-  body: string
+  body: string,
 ): Promise<boolean> {
   // Reject requests older than 5 minutes (replay protection)
   const ts = parseInt(timestamp, 10);
@@ -23,7 +23,7 @@ export async function verifySlackSignature(
     ENCODER.encode(signingSecret),
     { name: "HMAC", hash: "SHA-256" },
     false,
-    ["sign"]
+    ["sign"],
   );
 
   const sig = await crypto.subtle.sign("HMAC", key, ENCODER.encode(sigBasestring));

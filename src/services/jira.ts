@@ -22,9 +22,9 @@ function authHeader(env: Env, email?: string, token?: string): string {
 
 function baseHeaders(env: Env, email?: string, token?: string): Record<string, string> {
   return {
-    "Authorization": authHeader(env, email, token),
+    Authorization: authHeader(env, email, token),
     "Content-Type": "application/json",
-    "Accept": "application/json",
+    Accept: "application/json",
   };
 }
 
@@ -34,19 +34,23 @@ function baseHeaders(env: Env, email?: string, token?: string): Record<string, s
  * Searches Jira for issues that have worklogs in the given date range.
  * Uses the v3 POST search endpoint with token-based pagination.
  */
-export async function searchIssuesWithWorklogs(
-  env: Env,
-  email?: string,
-): Promise<JiraIssue[]> {
+export async function searchIssuesWithWorklogs(env: Env, email?: string): Promise<JiraIssue[]> {
   const jiraConfig = JSON.parse(env.JIRA_CONFIG) as JiraConfig;
   const boardList = jiraConfig.jira.boards.map((b) => `"${b}"`).join(", ");
   const componentList = jiraConfig.jira.projectComponents.map((c) => `"${c.name}"`).join(", ");
   const users = JSON.parse(env.USERS) as JiraUsers;
   // fetch issues that are in project components, to ensure we get all relevant worklogs for the day.
-  const jql = `project in (${boardList}) AND component IN (${componentList})${(email && users[email]) ? ` AND worklogAuthor = currentUser()` : ""}`;
+  const jql = `project in (${boardList}) AND component IN (${componentList})${email && users[email] ? ` AND worklogAuthor = currentUser()` : ""}`;
 
   const fields = [
-    "summary", "status", "created", "updated", "assignee", "labels", "components", "worklog"
+    "summary",
+    "status",
+    "created",
+    "updated",
+    "assignee",
+    "labels",
+    "components",
+    "worklog",
   ];
 
   const allIssues: JiraSearchIssue[] = [];
@@ -65,9 +69,8 @@ export async function searchIssuesWithWorklogs(
     const url = `${env.JIRA_BASE_URL}/rest/api/3/search/jql`;
     // When searching on behalf of a specific user, use their credentials so that
     // currentUser() in the JQL resolves to that user and not the service account.
-    const searchHeaders = email && users[email]
-      ? baseHeaders(env, email, users[email])
-      : baseHeaders(env);
+    const searchHeaders =
+      email && users[email] ? baseHeaders(env, email, users[email]) : baseHeaders(env);
     const resp = await fetch(url, {
       method: "POST",
       headers: searchHeaders,
@@ -179,7 +182,7 @@ export async function postWorklog(
   issueKey: string,
   dateStr: string,
   timeSpentSeconds: number,
-  email: string
+  email: string,
 ): Promise<boolean> {
   const url = `${env.JIRA_BASE_URL}/rest/api/3/issue/${issueKey}/worklog`;
   const body = {
@@ -205,10 +208,7 @@ export async function postWorklog(
 
 // ─── Fetch Issue Details (for generic tickets) ───
 
-export async function fetchIssueSummary(
-  env: Env,
-  issueKey: string
-): Promise<string> {
+export async function fetchIssueSummary(env: Env, issueKey: string): Promise<string> {
   const url = `${env.JIRA_BASE_URL}/rest/api/3/issue/${issueKey}?fields=summary`;
   const resp = await fetch(url, {
     method: "GET",
@@ -230,11 +230,11 @@ export async function fetchIssueSummary(
  */
 export async function buildAccountIdEmailMap(
   env: Env,
-  issues: JiraIssue[]
+  issues: JiraIssue[],
 ): Promise<Map<string, string>> {
   const cached = await env.CACHE.get(CACHE_KEY_ACCOUNT_MAP, "json");
   const map = new Map<string, string>(
-    cached ? Object.entries(cached as Record<string, string>) : []
+    cached ? Object.entries(cached as Record<string, string>) : [],
   );
 
   let updated = false;

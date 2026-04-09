@@ -40,7 +40,7 @@ export async function sendDirectMessage(
   env: Env,
   slackUserId: string,
   blocks: SlackBlock[],
-  text: string
+  text: string,
 ): Promise<boolean> {
   const resp = await fetch("https://slack.com/api/chat.postMessage", {
     method: "POST",
@@ -75,7 +75,7 @@ export async function updateMessageViaResponseUrl(
   responseUrl: string,
   blocks: SlackBlock[],
   text: string,
-  replaceOriginalMessage: boolean
+  replaceOriginalMessage: boolean,
 ): Promise<void> {
   await fetch(responseUrl, {
     method: "POST",
