@@ -17,12 +17,12 @@ export function aggregateUserHours(
 ): Map<string, UserHoursSummary> {
   const summaries = new Map<string, UserHoursSummary>();
   // Helper: Find the summary of a user or create it if it doesn't exist.
-  const getOrCreateSummary = (email: string, displayName?: string | null) => {
+  const getOrCreateSummary = (email: string) => {
     const lowerEmail = email.toLowerCase();
     if (!summaries.has(lowerEmail)) {
       summaries.set(lowerEmail, {
         email: email,
-        displayName: displayName || email.split("@")[0],
+        displayName: email.split(".")[0].charAt(0).toUpperCase() + email.split(".")[0].slice(1),
         totalHours: 0,
         workedTickets: [],
         ticketKeys: [],
@@ -45,7 +45,7 @@ export function aggregateUserHours(
       const assigneeEmail = accountEmailMap.get(issue.assigneeAccountId);
       if (assigneeEmail) {
         // Create dynamically if not existed in userEmails
-        const summary = getOrCreateSummary(assigneeEmail, issue.assigneeDisplayName);
+        const summary = getOrCreateSummary(assigneeEmail);
         summary.ticketKeys.push({ key: issue.key, summary: issue.summary, hours: 0 });
       }
     }
@@ -59,7 +59,7 @@ export function aggregateUserHours(
       if (!authorEmail) continue;
 
       // Find which user this worklog belongs to
-      const summary = getOrCreateSummary(authorEmail, wl.authorDisplayName);
+      const summary = getOrCreateSummary(authorEmail);
       const hours = wl.timeSpentSeconds / 3600;
 
       // Find or create the ticket entry

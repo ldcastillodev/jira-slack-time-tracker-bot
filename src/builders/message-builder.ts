@@ -47,7 +47,7 @@ function buildHoursBreakdown(summary: UserHoursSummary, dailyTarget: number): Sl
     type: "section",
     text: {
       type: "mrkdwn",
-      text: `👋 Hola *${summary.displayName.split(" ")[0]}*,\n\n${status}`,
+      text: `👋 Hola *${summary.displayName}*\n\n${status}`,
     },
   });
 

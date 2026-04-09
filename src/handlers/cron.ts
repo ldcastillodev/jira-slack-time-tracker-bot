@@ -77,12 +77,11 @@ export async function handleScheduled(env: Env): Promise<void> {
   for (const email of userEmails) {
     const lowerEmail = email.toLowerCase();
     const dailySummary = dailySummaries.get(lowerEmail);
-    console.log(dailySummary);
     if (!dailySummary) {
       console.error(`No summary found for ${email}`);
       continue;
     }
-
+    console.log(`Daily summary for ${email}:`, `total hours today ${dailySummary?.totalHours}`);
     // Resolve Slack user ID
     const slackUserId = await lookupUserByEmail(env, email);
     if (!slackUserId) {
