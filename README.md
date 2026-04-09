@@ -46,6 +46,13 @@ Every weekday at **4:00 PM ET**, the bot:
 │  │          │───▶│ Return option_groups (max 100)    │    │
 │  └──────────┘    └──────────────────────────────────┘    │
 │                                                          │
+│  ┌──────────┐    ┌──────────────────────────────────┐    │
+│  │  POST    │───▶│ Verify Slack signature            │    │
+│  │ /slack/  │    │ Dispatch by command               │    │
+│  │ commands │    │ /summary: fetch Jira weekly data  │    │
+│  │          │───▶│ Post summary via response_url     │    │
+│  └──────────┘    └──────────────────────────────────┘    │
+│                                                          │
 │  ┌──────────┐                                            │
   │ Workers  │  Cache: Slack user IDs (7d TTL), Jira     │
   │   KV     │  accountId→email map (24h TTL),           │
@@ -106,6 +113,31 @@ On submit, the backend dynamically detects the number of slots from `state.value
 
 ---
 
+## Slash Commands
+
+| Command    | Description                                                                                                                   |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `/summary` | Returns your **weekly hour summary** — total hours logged Mon–Fri vs. the 40h target, with a day-by-day breakdown per ticket. |
+
+### How it works
+
+1. Slack sends a `POST` to `/slack/commands` with your Slack user ID.
+2. The bot immediately responds with an ephemeral _"⏳ Generando tu resumen semanal..."_ (within the 3-second Slack limit).
+3. Asynchronously, it fetches the current week's worklogs from Jira, aggregates them, builds a Block Kit weekly message, and replaces the loading message via `response_url`.
+4. If something goes wrong (user not found, Jira error), you receive a friendly ephemeral error instead.
+
+### Adding new commands
+
+The handler in `src/handlers/slack-command.ts` uses a `switch` dispatcher. To add a command:
+
+```typescript
+case "/mycommand":
+  ctx.waitUntil(processMyCommand(payload.user_id, payload.response_url, env));
+  return jsonResponse({ response_type: "ephemeral", text: "⏳ Procesando..." });
+```
+
+---
+
 ## Prerequisites
 
 - **Cloudflare account** (free tier is enough)
@@ -131,6 +163,7 @@ Add these scopes:
 - `chat:write` — Send messages
 - `users:read.email` — Lookup users by email
 - `im:write` — Open DMs with users
+- `commands` — Register and receive slash commands
 
 #### Interactivity & Shortcuts
 
@@ -138,6 +171,18 @@ Add these scopes:
 - **Request URL**: `https://jira-time-tracker-bot.<your-account>.workers.dev/slack/interactions`
 - **Options Load URL**: `https://jira-time-tracker-bot.<your-account>.workers.dev/slack/options`
   _(update both URLs after deploy)_
+
+#### Slash Commands
+
+1. Go to **Slash Commands** in your app's settings
+2. Click **Create New Command**
+3. Fill in:
+   - **Command**: `/summary`
+   - **Request URL**: `https://jira-time-tracker-bot.<your-account>.workers.dev/slack/commands`
+   - **Short Description**: `Ver tu resumen semanal de horas`
+   - **Usage Hint**: _(leave empty)_
+   - **Escape channels, users, and links**: off
+4. Save and reinstall the app to your workspace
 
 #### Install to Workspace
 

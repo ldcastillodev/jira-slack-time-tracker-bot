@@ -6,12 +6,15 @@ import type {
   SlotEntry,
   ExistingSelection,
 } from "../types/index.ts";
-import { CACHE_KEY_SLACK_USER_PREFIX } from "../constants.ts";
 import { verifySlackSignature } from "../utils/crypto.ts";
 import { getTodayET, isSameCalendarWeek } from "../utils/date.ts";
 import { loadConfig } from "../config.ts";
 import { searchIssuesWithWorklogs, buildAccountIdEmailMap, postWorklog } from "../services/jira.ts";
-import { sendDirectMessage, updateMessageViaResponseUrl } from "../services/slack.ts";
+import {
+  sendDirectMessage,
+  updateMessageViaResponseUrl,
+  resolveEmailFromSlackId,
+} from "../services/slack.ts";
 import { aggregateUserHours } from "../services/aggregator.ts";
 import { buildConfirmationMessage, buildDailyMessage } from "../builders/message-builder.ts";
 
@@ -410,25 +413,6 @@ async function processAddSlot(payload: SlackInteractionPayload, env: Env): Promi
       "❌ Ocurrió un error al agregar la ranura. Por favor intenta de nuevo.",
     );
   }
-}
-
-/**
- * Resolves a configured user's email from their Slack user ID.
- * Checks the KV cache for reverse mappings.
- */
-async function resolveEmailFromSlackId(
-  env: Env,
-  slackUserId: string,
-  configuredEmails: string[],
-): Promise<string | null> {
-  // Check KV cache for each email → slackId mapping
-  for (const email of configuredEmails) {
-    const cached = await env.CACHE.get(`${CACHE_KEY_SLACK_USER_PREFIX}${email}`);
-    if (cached === slackUserId) {
-      return email;
-    }
-  }
-  return null;
 }
 
 async function sendError(responseUrl: string, message: string): Promise<void> {

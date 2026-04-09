@@ -88,3 +88,23 @@ export async function updateMessageViaResponseUrl(
     }),
   });
 }
+
+// ─── Resolve Email from Slack User ID (KV-cached reverse lookup) ───
+
+/**
+ * Resolves a configured user's email from their Slack user ID.
+ * Checks the KV cache for reverse mappings (email → slackId).
+ */
+export async function resolveEmailFromSlackId(
+  env: Env,
+  slackUserId: string,
+  configuredEmails: string[],
+): Promise<string | null> {
+  for (const email of configuredEmails) {
+    const cached = await env.CACHE.get(`${CACHE_KEY_SLACK_USER_PREFIX}${email}`);
+    if (cached === slackUserId) {
+      return email;
+    }
+  }
+  return null;
+}

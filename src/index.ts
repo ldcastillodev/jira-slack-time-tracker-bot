@@ -2,6 +2,7 @@ import type { Env } from "./types/index.ts";
 import { handleScheduled } from "./handlers/cron.ts";
 import { handleSlackInteraction } from "./handlers/slack-interaction.ts";
 import { handleSlackOptions } from "./handlers/slack-options.ts";
+import { handleSlackCommand } from "./handlers/slack-command.ts";
 
 export default {
   /**
@@ -23,6 +24,11 @@ export default {
     // Slack external_select options endpoint
     if (url.pathname === "/slack/options" && request.method === "POST") {
       return handleSlackOptions(request, env);
+    }
+
+    // Slack slash commands endpoint
+    if (url.pathname === "/slack/commands" && request.method === "POST") {
+      return handleSlackCommand(request, env, ctx);
     }
 
     // Manual cron trigger (for testing)
