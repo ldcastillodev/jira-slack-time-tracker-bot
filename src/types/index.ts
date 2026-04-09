@@ -222,3 +222,16 @@ export interface SlackAction {
   selected_option?: SlackOption;
   action_ts: string;
 }
+
+// ─── Slack Slash Command Payload ───
+
+export interface SlackCommandPayload {
+  command: string;
+  text: string;
+  user_id: string;
+  user_name: string;
+  team_id: string;
+  channel_id: string;
+  response_url: string;
+  trigger_id: string;
+}

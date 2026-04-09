@@ -163,3 +163,46 @@ export function mockJsonResponse(data: unknown, status: number = 200): Response 
     headers: { "Content-Type": "application/json" },
   });
 }
+
+/**
+ * Creates a signed Slack slash command request.
+ * Slack sends slash commands as form-urlencoded key/value pairs (not a `payload` wrapper).
+ */
+export async function createSignedSlackCommandRequest(
+  signingSecret: string,
+  params: {
+    command: string;
+    text?: string;
+    user_id?: string;
+    user_name?: string;
+    team_id?: string;
+    channel_id?: string;
+    response_url?: string;
+    trigger_id?: string;
+  },
+  path: string = "/slack/commands",
+): Promise<Request> {
+  const formParams = new URLSearchParams({
+    command: params.command,
+    text: params.text ?? "",
+    user_id: params.user_id ?? "U12345",
+    user_name: params.user_name ?? "testuser",
+    team_id: params.team_id ?? "T12345",
+    channel_id: params.channel_id ?? "C12345",
+    response_url: params.response_url ?? "https://hooks.slack.com/commands/test/response",
+    trigger_id: params.trigger_id ?? "trigger.123",
+  });
+  const body = formParams.toString();
+  const timestamp = String(Math.floor(Date.now() / 1000));
+  const signature = await generateSlackSignature(signingSecret, timestamp, body);
+
+  return new Request(`http://localhost${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "x-slack-signature": signature,
+      "x-slack-request-timestamp": timestamp,
+    },
+    body,
+  });
+}
