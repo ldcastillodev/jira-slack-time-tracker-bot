@@ -63,9 +63,14 @@ export async function searchIssuesWithWorklogs(
     }
 
     const url = `${env.JIRA_BASE_URL}/rest/api/3/search/jql`;
+    // When searching on behalf of a specific user, use their credentials so that
+    // currentUser() in the JQL resolves to that user and not the service account.
+    const searchHeaders = email && users[email]
+      ? baseHeaders(env, email, users[email])
+      : baseHeaders(env);
     const resp = await fetch(url, {
       method: "POST",
-      headers: baseHeaders(env),
+      headers: searchHeaders,
       body: JSON.stringify(body),
     });
 

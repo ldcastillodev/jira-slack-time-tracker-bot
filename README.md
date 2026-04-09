@@ -47,8 +47,9 @@ Every weekday at **4:00 PM ET**, the bot:
 │  └──────────┘    └──────────────────────────────────┘    │
 │                                                          │
 │  ┌──────────┐                                            │
-│  │ Workers  │  Cache: Slack user IDs, Jira accountId     │
-│  │   KV     │  → email map, all_tickets (typeahead)      │
+  │ Workers  │  Cache: Slack user IDs (7d TTL), Jira     │
+  │   KV     │  accountId→email map (24h TTL),           │
+  │          │  all_tickets typeahead (24h TTL)           │
 │  └──────────┘                                            │
 └──────────────────────────────────────────────────────────┘
 ```
@@ -75,7 +76,7 @@ Ticket selectors use `external_select` with `min_query_length: 0`, meaning:
 - No 100-ticket limit (search filters from the full cache)
 - The `/slack/options` endpoint responds with `option_groups` separating "📌 Generic Tickets" and "📋 Project Tickets"
 
-The ticket cache updates automatically on each cron run (4PM ET) and is stored in KV with key `all_tickets`.
+The ticket cache updates automatically on each cron run (4PM ET) and is stored in KV with key `all_tickets` (TTL: 24 hours, aligned with cron frequency).
 
 ### `targetDate` Encoding
 
@@ -318,6 +319,7 @@ jira-time-tracker-bot/
 ├── src/
 │   ├── index.ts                    # Entry: fetch + scheduled handlers
 │   ├── config.ts                   # Config loader + validation
+│   ├── constants.ts                # Cache key names and TTL values
 │   ├── types/
 │   │   └── index.ts                # TypeScript interfaces
 │   ├── handlers/
@@ -348,12 +350,42 @@ jira-time-tracker-bot/
 
 ---
 
+## Cache Strategy
+
+All KV cache keys and TTLs are centralized in `src/constants.ts`.
+
+| KV Key | TTL | Content | Written by |
+|--------|-----|---------|------------|
+| `all_tickets` | 24 hours | Full ticket list for typeahead | Cron (4PM ET) |
+| `jira_account_map` | 24 hours | Jira `accountId` → email mapping | Cron + interactions |
+| `slack_user:{email}` | 7 days | Slack user ID for each email | Lazy on first send |
+
+### Invalidation rules
+
+- **`all_tickets`** — Overwritten on every cron run. Expires after 24h, ensuring stale tickets cannot outlive one day even if the cron misses.
+- **`jira_account_map`** — Overwritten on every cron and every user interaction. Fresh emails **always overwrite** cached entries (no append-only guard), so corrupted or incomplete mappings self-heal automatically. TTL reduced to 24h (was 7 days) to cap the blast radius of a bad entry.
+- **`slack_user:{email}`** — Written once per email (lazy) and cached for 7 days. Slack user IDs are stable; 7 days provides a safety margin if an account is recreated.
+
+### Consistency in Cloudflare Workers KV
+
+KV has eventual consistency (~60 s global propagation). This does **not** affect correctness because:
+- **Hours are never cached in KV.** Every validation and confirmation reads directly from the Jira API.
+- Cache writes return the in-memory `Map` to the same request, so the issuing Worker sees its own writes immediately.
+
+---
+
 ## Troubleshooting
 
-### Bot doesn't send messages
+### Bot doesn't send messages / "No summary found" error
 - Check that emails in `config/tracker-config.json` exactly match Slack and Jira emails
+- The aggregator pre-populates all configured emails with 0 hours, so even users with no worklogs will always get a message. If this error still appears, check that the email is in the `USERS` secret.
 - Check logs: `wrangler tail`
 - Check that the Slack App has the required scopes and is installed in the workspace
+
+### Bot reports stale hours after logging (e.g. shows 5h after logging 8h)
+- This was caused by the `jira_account_map` using an append-only merge strategy that prevented email mappings from being updated. Fixed: the map now always overwrites with the latest email from Jira.
+- If the issue persists, manually delete the `jira_account_map` key via the Cloudflare KV dashboard. It will be rebuilt on the next cron run or user interaction.
+- Note: hours are always fetched fresh from the Jira API — they are never stored in KV.
 
 ### 401 error on Slack interactions
 - Check that `SLACK_SIGNING_SECRET` is correct (in Slack App Basic Information, NOT the Bot Token)
