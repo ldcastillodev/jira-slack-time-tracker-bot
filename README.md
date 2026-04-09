@@ -244,9 +244,15 @@ After deploy, update the URLs in the Slack App:
 
 ## CI/CD with GitHub Actions
 
-The project includes a GitHub Actions workflow with two stages:
-- `build`: runs on pushes and pull requests to `master`, installs dependencies, runs type-check, and generates the Worker bundle with `wrangler deploy --dry-run`
-- `deploy`: runs only on pushes to `master` and only if the build job passed
+The project includes three GitHub Actions workflows:
+
+| Workflow | Trigger | Steps | Deploy? |
+|----------|---------|-------|---------|
+| `pr.yaml` | PR to `master` | Lint → Test → Build (dry-run) | No |
+| `deploy-production.yaml` | Push/merge to `master` | Lint → Test → Type Check → Deploy | Yes (production) |
+| `deploy-test.yaml` | Push/merge to `develop` | Lint → Test → Type Check → Deploy | Yes (test) |
+
+**Rule**: No deploy ever runs unless lint, tests, and build pass first.
 
 ### Set secrets in GitHub
 
@@ -268,8 +274,123 @@ Recommended variables and secrets:
 ### Workflow flow
 
 ```
-push/pull_request master → checkout → setup-node@20 → npm ci → tsc --noEmit → wrangler deploy --dry-run
-push master + build OK → wrangler deploy
+PR → master:     lint → test → build (dry-run)
+Push → master:   lint → test → type-check → wrangler deploy
+Push → develop:  lint → test → type-check → wrangler deploy --env test
+```
+
+---
+
+## Testing
+
+The project uses **Vitest** with `@cloudflare/vitest-pool-workers` to run tests inside the real Workers runtime (miniflare). This provides native access to KV, `crypto.subtle`, `fetch`, etc.
+
+### Running tests
+
+```bash
+# Run all tests once
+npm test
+
+# Watch mode (re-run on file changes)
+npm run test:watch
+
+# With coverage report
+npm run test:coverage
+```
+
+### Test structure
+
+```
+tests/
+├── setup.ts                         # Mock factories and helpers
+├── utils/
+│   ├── date.test.ts                 # Date/timezone utility tests
+│   └── crypto.test.ts               # Slack signature verification tests
+├── services/
+│   ├── aggregator.test.ts           # Hours aggregation logic tests
+│   ├── jira.test.ts                 # Jira API service tests
+│   └── slack.test.ts                # Slack API service tests
+├── handlers/
+│   ├── cron.test.ts                 # Cron trigger handler tests
+│   ├── slack-interaction.test.ts    # Slack interaction handler tests
+│   └── slack-options.test.ts        # Slack options endpoint tests
+├── builders/
+│   └── message-builder.test.ts      # Block Kit builder tests
+└── integration/
+    └── index.test.ts                # Router integration tests
+```
+
+### Mocking strategy
+
+- **External APIs (Jira, Slack)**: Mocked via `vi.stubGlobal("fetch", ...)` to intercept all HTTP calls
+- **KV namespace**: Either real miniflare KV (from pool config) or manual mock with `vi.fn()` for precise control
+- **Date/time**: Spied via `vi.spyOn()` to control `getCurrentHourET()`, `getTodayET()`, etc.
+
+---
+
+## Linting & Formatting
+
+```bash
+# Run ESLint
+npm run lint
+
+# Auto-fix ESLint issues
+npm run lint:fix
+
+# Check formatting (Prettier)
+npm run format:check
+
+# Auto-format files
+npm run format
+```
+
+---
+
+## Pre-commit Hooks
+
+The project uses **Husky** + **lint-staged** to automatically lint and format staged files before each commit.
+
+**What runs on commit:**
+1. `eslint --fix` on staged `.ts` files
+2. `prettier --write` on staged `.ts` files
+3. `tsc --noEmit` (full type check)
+
+If any step fails, the commit is blocked.
+
+### Emergency bypass
+
+In extreme cases (e.g., hotfix that must ship immediately), you can skip the pre-commit hook:
+
+```bash
+git commit --no-verify -m "hotfix: critical fix"
+```
+
+> **Warning**: Use `--no-verify` sparingly. CI will still catch any issues on the PR/push.
+
+---
+
+## test Environment
+
+The `develop` branch deploys to a separate Cloudflare Worker (`jira-time-tracker-bot-test`) with its own KV namespace and secrets.
+
+### Setup test
+
+```bash
+# 1. Create test KV namespace
+wrangler kv namespace create CACHE --env test
+
+# 2. Update wrangler.toml [env.test] with the generated IDs
+
+# 3. Set test secrets
+wrangler secret put JIRA_API_TOKEN --env test
+wrangler secret put JIRA_USER_EMAIL --env test
+wrangler secret put SLACK_BOT_TOKEN --env test
+wrangler secret put SLACK_SIGNING_SECRET --env test
+wrangler secret put USERS --env test
+wrangler secret put JIRA_CONFIG --env test
+
+# 4. Deploy manually (or push to develop)
+wrangler deploy --env test
 ```
 
 ---
@@ -335,15 +456,29 @@ jira-time-tracker-bot/
 │   └── utils/
 │       ├── date.ts                 # Date/timezone utilities
 │       └── crypto.ts               # HMAC-SHA256 signature verification
+├── tests/
+│   ├── setup.ts                    # Mock factories and helpers
+│   ├── utils/                      # Utility tests
+│   ├── services/                   # Service tests
+│   ├── handlers/                   # Handler tests
+│   ├── builders/                   # Builder tests
+│   └── integration/                # Router integration tests
 ├── config/
 │   └── tracker-config.json         # Boards, users, tickets, thresholds
-├── wrangler.toml                   # CF Worker config + cron
+├── .github/
+│   └── workflows/
+│       ├── pr.yaml                  # CI: lint + test + build on PRs
+│       ├── deploy-production.yaml   # CD: deploy to production on merge to master
+│       └── deploy-test.yaml      # CD: deploy to test on push to develop
+├── .husky/
+│   └── pre-commit                  # Pre-commit hook (lint-staged + type check)
+├── wrangler.toml                   # CF Worker config + cron + test env
+├── vitest.config.ts                # Vitest + Workers pool configuration
+├── eslint.config.mjs               # ESLint flat config
+├── .prettierrc                     # Prettier configuration
 ├── tsconfig.json
 ├── package.json
 ├── .dev.vars.example               # Secret template
-├── .github/
-│   └── workflows/
-│       └── deploy.yml              # CI/CD: auto-deploy on push to main
 ├── .gitignore
 └── README.md
 ```

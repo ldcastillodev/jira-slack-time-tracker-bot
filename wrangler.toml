@@ -28,3 +28,18 @@ JIRA_BASE_URL = "https://applydigital.atlassian.net"
 # - JIRA_USER_EMAIL
 # - SLACK_BOT_TOKEN
 # - SLACK_SIGNING_SECRET
+
+# ─── Test Environment ───
+# Deploy: wrangler deploy --env test
+# Secrets: wrangler secret put <NAME> --env test
+# KV: wrangler kv namespace create CACHE --env test (then update IDs below)
+[env.test]
+name = "jira-time-tracker-bot-test"
+
+[[env.test.kv_namespaces]]
+binding = "CACHE"
+id = "ffb23fcbe39342d5a91238f73fe85610"
+preview_id = "0945518697a242e0982664017bc57de3"
+
+[env.test.vars]
+JIRA_BASE_URL = "https://applydigital.atlassian.net"
