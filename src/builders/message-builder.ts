@@ -228,7 +228,7 @@ function buildWeeklySummaryBlocks(weekly: WeeklyBreakdown, weeklyTarget: number)
     if (day.tickets.length > 0) {
       dayBreakdown += "\n";
       for (const t of day.tickets) {
-        dayBreakdown += `      • \`${t.key}\` \`(${t.summary})\` — ${t.hours.toFixed(1)}h\n`;
+        dayBreakdown += `      • \`${t.key}\` ${t.summary} — ${t.hours.toFixed(1)}h\n`;
       }
     } else {
       dayBreakdown += " — _Sin horas_\n";
@@ -391,4 +391,50 @@ export function buildWeeklyByComponentMessage(
   }
 
   return blocks;
+}
+
+// ─── Help Message ───
+
+/**
+ * Builds an ephemeral help message listing all available slash commands.
+ * Response is in Spanish, consistent with the project's UI language.
+ * Returned synchronously — no external calls required.
+ */
+export function buildHelpMessage(): SlackBlock[] {
+  return [
+    {
+      type: "header",
+      text: { type: "plain_text", text: "📖 Ayuda — Bot de Horas", emoji: true },
+    },
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: "Soy un bot de seguimiento de horas integrado con *Jira* y *Slack*. Cada día hábil a las 4 PM ET te envío un reporte con tus horas del día y te permito registrar tiempo directamente desde Slack.",
+      },
+    },
+    { type: "divider" },
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: [
+          "*Comandos disponibles:*",
+          "",
+          "• `/summary` — Muestra tu resumen semanal de horas (Lun–Vie vs objetivo de 40h).",
+          "• `/summary-components` — Muestra tu resumen semanal agrupado por componente de Jira.",
+          "• `/daily-summary [lun|mar|mie|jue|vie]` — Muestra el resumen de un día específico de la semana en curso (por defecto: hoy).",
+          "• `/refresh-tickets` — Actualiza el caché de tickets de Jira para la búsqueda por typeahead.",
+          "• `/help` — Muestra este mensaje de ayuda.",
+        ].join("\n"),
+      },
+    },
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: "_Solo tú puedes ver este mensaje._",
+      },
+    },
+  ];
 }

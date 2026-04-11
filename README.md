@@ -120,6 +120,8 @@ On submit, the backend dynamically detects the number of slots from `state.value
 | `/summary`             | Your **weekly hour summary** — total Mon–Fri vs. 40h target, day-by-day breakdown per ticket.  | —                                              |
 | `/summary-components`  | Your **weekly summary grouped by Jira component** — hours per component, then per day.         | —                                              |
 | `/daily-summary [dia]` | Your **daily hour summary on demand** — reuses the same interactive form to log missing hours. | `lun`, `mar`, `mie`, `jue`, `vie` _(optional)_ |
+| `/refresh-tickets`     | Manually refreshes the Jira ticket cache used by the typeahead selector.                       | —                                              |
+| `/help`                | Shows the list of available commands and their descriptions.                                   | —                                              |
 
 ### `/daily-summary` validation rules
 
@@ -143,7 +145,7 @@ On submit, the backend dynamically detects the number of slots from `state.value
 3. Asynchronously, it fetches worklogs from Jira, aggregates them, builds a Block Kit message, and replaces the loading message via `response_url`.
 4. If something goes wrong (user not found, Jira error), you receive a friendly ephemeral error instead.
 
-> **Note:** The two new commands (`/summary-components` and `/daily-summary`) must be registered in your Slack App dashboard pointing to the same `/slack/commands` endpoint.
+> **Note:** All commands (`/summary`, `/summary-components`, `/daily-summary`, `/refresh-tickets`, `/help`) must be registered in your Slack App dashboard pointing to the same `/slack/commands` endpoint.
 
 ### Adding new commands
 
@@ -201,7 +203,16 @@ Add these scopes:
    - **Short Description**: `Ver tu resumen semanal de horas`
    - **Usage Hint**: _(leave empty)_
    - **Escape channels, users, and links**: off
-4. Save and reinstall the app to your workspace
+4. Repeat for each additional command — all point to the same **Request URL**:
+
+   | Command               | Short Description                                | Usage Hint                        |
+   | --------------------- | ------------------------------------------------ | --------------------------------- |
+   | `/summary-components` | Ver tu resumen semanal por componente            | —                                 |
+   | `/daily-summary`      | Ver el resumen de un día específico de la semana | `lun \| mar \| mie \| jue \| vie` |
+   | `/refresh-tickets`    | Actualizar el caché de tickets de Jira           | —                                 |
+   | `/help`               | Ver la lista de comandos disponibles             | —                                 |
+
+5. Save and reinstall the app to your workspace
 
 #### Install to Workspace
 

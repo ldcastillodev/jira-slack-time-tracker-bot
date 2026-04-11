@@ -8,7 +8,7 @@ import type {
 } from "../types/index.ts";
 import { verifySlackSignature } from "../utils/crypto.ts";
 import { getTodayET, isSameCalendarWeek } from "../utils/date.ts";
-import { loadConfig } from "../config.ts";
+import { loadConfig } from "../../config/config.ts";
 import { searchIssuesWithWorklogs, buildAccountIdEmailMap, postWorklog } from "../services/jira.ts";
 import {
   sendDirectMessage,

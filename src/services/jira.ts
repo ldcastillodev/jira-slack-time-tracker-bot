@@ -9,7 +9,7 @@ import type {
   JiraConfig,
   JiraUsers,
 } from "../types/index.ts";
-import { CACHE_KEY_ACCOUNT_MAP, TTL_ACCOUNT_MAP } from "../constants.ts";
+import { CACHE_KEY_ACCOUNT_MAP, TTL_ACCOUNT_MAP } from "../constants/constants.ts";
 import { getWeekBoundaries } from "../utils/date.ts";
 
 // ─── Helpers ───

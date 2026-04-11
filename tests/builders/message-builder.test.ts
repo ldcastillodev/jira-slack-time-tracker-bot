@@ -4,6 +4,7 @@ import {
   buildWeeklyMessage,
   buildConfirmationMessage,
   buildWeeklyByComponentMessage,
+  buildHelpMessage,
 } from "../../src/builders/message-builder.ts";
 import type {
   UserHoursSummary,
@@ -476,5 +477,47 @@ describe("buildWeeklyByComponentMessage", () => {
     // Only one day has hours, so only that day should appear in the breakdown
     const dayBlock = blocks.find((b) => b.text?.text?.includes("2026-04-07"));
     expect(dayBlock).toBeUndefined();
+  });
+});
+
+describe("buildHelpMessage", () => {
+  it("returns a non-empty SlackBlock array", () => {
+    const blocks = buildHelpMessage();
+    expect(Array.isArray(blocks)).toBe(true);
+    expect(blocks.length).toBeGreaterThan(0);
+  });
+
+  it("first block is a header containing 'Ayuda'", () => {
+    const blocks = buildHelpMessage();
+    expect(blocks[0].type).toBe("header");
+    expect(blocks[0].text?.text).toContain("Ayuda");
+  });
+
+  it("contains a divider block", () => {
+    const blocks = buildHelpMessage();
+    expect(blocks.some((b) => b.type === "divider")).toBe(true);
+  });
+
+  it("lists all 5 command names", () => {
+    const blocks = buildHelpMessage();
+    const allText = blocks.map((b) => b.text?.text ?? "").join("\n");
+    expect(allText).toContain("/summary");
+    expect(allText).toContain("/summary-components");
+    expect(allText).toContain("/daily-summary");
+    expect(allText).toContain("/refresh-tickets");
+    expect(allText).toContain("/help");
+  });
+
+  it("command listing block uses mrkdwn type", () => {
+    const blocks = buildHelpMessage();
+    const commandBlock = blocks.find(
+      (b) => b.type === "section" && b.text?.type === "mrkdwn" && b.text.text.includes("/summary"),
+    );
+    expect(commandBlock).toBeDefined();
+    expect(commandBlock!.text!.type).toBe("mrkdwn");
+  });
+
+  it("is deterministic — identical output on each call", () => {
+    expect(JSON.stringify(buildHelpMessage())).toBe(JSON.stringify(buildHelpMessage()));
   });
 });

@@ -1,5 +1,5 @@
 import type { Env, SlackBlock } from "../types/index.ts";
-import { CACHE_KEY_SLACK_USER_PREFIX, TTL_SLACK_USER } from "../constants.ts";
+import { CACHE_KEY_SLACK_USER_PREFIX, TTL_SLACK_USER } from "../constants/constants.ts";
 
 // ─── Lookup Slack User by Email (KV-cached) ───
 

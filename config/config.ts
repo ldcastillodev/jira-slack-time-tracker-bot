@@ -1,5 +1,5 @@
-import type { TrackerConfig } from "./types/index.ts";
-import rawConfig from "../config/tracker-config.json";
+import type { TrackerConfig } from "../src/types/index.ts";
+import rawConfig from "./tracker-config.json";
 
 export function loadConfig(): TrackerConfig {
   const cfg = rawConfig as TrackerConfig;

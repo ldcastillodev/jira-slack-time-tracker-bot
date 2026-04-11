@@ -385,6 +385,262 @@ describe("handleSlackCommand", () => {
     expect(Array.isArray(sentBody.blocks)).toBe(true);
     expect(sentBody.blocks.length).toBeGreaterThan(0);
   });
+
+  // ─── /refresh-tickets → processRefreshTicketsCommand ───
+
+  describe("/refresh-tickets", () => {
+    const REFRESH_RESPONSE_URL = "https://hooks.slack.com/commands/test/refresh-response";
+    let kvPut: ReturnType<typeof vi.fn>;
+
+    beforeEach(() => {
+      kvPut = vi.fn().mockResolvedValue(undefined);
+      const kv = {
+        get: vi.fn().mockResolvedValue(null),
+        put: kvPut,
+        delete: vi.fn(),
+        list: vi.fn(),
+        getWithMetadata: vi.fn(),
+      };
+      env = createMockEnv({ CACHE: kv as unknown as KVNamespace });
+    });
+
+    async function issueRequest(): Promise<{
+      response: Response;
+      capturedPromise: Promise<unknown>;
+    }> {
+      const request = await createSignedSlackCommandRequest(SIGNING_SECRET, {
+        command: "/refresh-tickets",
+        response_url: REFRESH_RESPONSE_URL,
+      });
+      let capturedPromise: Promise<unknown> = Promise.resolve();
+      (mockCtx.waitUntil as ReturnType<typeof vi.fn>).mockImplementation((p: Promise<unknown>) => {
+        capturedPromise = p;
+      });
+      const response = await handleSlackCommand(request, env, mockCtx);
+      return { response, capturedPromise };
+    }
+
+    it("returns 200 with ephemeral loading message and schedules async work", async () => {
+      fetchSpy.mockResolvedValue(mockJsonResponse({ issues: [], nextPageToken: undefined }));
+
+      const { response } = await issueRequest();
+
+      expect(response.status).toBe(200);
+      const body = (await response.json()) as { response_type: string; text: string };
+      expect(body.response_type).toBe("ephemeral");
+      expect(body.text).toContain("Actualizando");
+      expect(mockCtx.waitUntil).toHaveBeenCalledOnce();
+    });
+
+    it("caches generic + project tickets and posts success blocks", async () => {
+      fetchSpy.mockResolvedValueOnce(
+        mockJsonResponse({
+          issues: [
+            {
+              key: "PROJ-1",
+              fields: {
+                summary: "Issue One",
+                status: { name: "In Progress" },
+                assignee: null,
+                components: [],
+                worklog: { total: 0, maxResults: 100, worklogs: [] },
+              },
+            },
+          ],
+          nextPageToken: undefined,
+        }),
+      );
+      fetchSpy.mockResolvedValueOnce(new Response("{}", { status: 200 }));
+
+      const { capturedPromise } = await issueRequest();
+      await capturedPromise;
+
+      // KV updated with correct key and TTL
+      expect(kvPut).toHaveBeenCalledOnce();
+      const [cacheKey, jsonValue, options] = kvPut.mock.calls[0] as [
+        string,
+        string,
+        { expirationTtl: number },
+      ];
+      expect(cacheKey).toBe("all_tickets");
+      expect(options).toEqual({ expirationTtl: 604800 });
+
+      // Both generic and project tickets cached
+      const cached = JSON.parse(jsonValue) as Array<{ key: string; summary: string }>;
+      expect(cached).toContainEqual({ key: "TEST-1", summary: "Generic Ticket 1" });
+      expect(cached).toContainEqual({ key: "PROJ-1", summary: "Issue One" });
+
+      // Success block posted to response_url
+      const lastCall = fetchSpy.mock.calls[fetchSpy.mock.calls.length - 1];
+      expect(lastCall[0]).toBe(REFRESH_RESPONSE_URL);
+      const sentBody = JSON.parse(lastCall[1].body as string) as {
+        blocks: Array<{ text?: { text: string } }>;
+      };
+      const blockTexts = sentBody.blocks.map((b) => b.text?.text ?? "").join(" ");
+      expect(blockTexts).toContain("✅ Tickets Actualizados");
+    });
+
+    it("deduplicates when Jira returns a key that matches a generic ticket", async () => {
+      fetchSpy.mockResolvedValueOnce(
+        mockJsonResponse({
+          issues: [
+            {
+              key: "TEST-1",
+              fields: {
+                summary: "Duplicate Generic",
+                status: { name: "Open" },
+                assignee: null,
+                components: [],
+                worklog: { total: 0, maxResults: 100, worklogs: [] },
+              },
+            },
+          ],
+          nextPageToken: undefined,
+        }),
+      );
+      fetchSpy.mockResolvedValueOnce(new Response("{}", { status: 200 }));
+
+      const { capturedPromise } = await issueRequest();
+      await capturedPromise;
+
+      // TEST-1 should appear exactly once (generic takes priority)
+      const cached = JSON.parse(kvPut.mock.calls[0][1] as string) as Array<{ key: string }>;
+      expect(cached.filter((t) => t.key === "TEST-1")).toHaveLength(1);
+    });
+
+    it("caches only generic tickets when Jira returns no issues", async () => {
+      fetchSpy.mockResolvedValueOnce(mockJsonResponse({ issues: [], nextPageToken: undefined }));
+      fetchSpy.mockResolvedValueOnce(new Response("{}", { status: 200 }));
+
+      const { capturedPromise } = await issueRequest();
+      await capturedPromise;
+
+      const cached = JSON.parse(kvPut.mock.calls[0][1] as string) as Array<{
+        key: string;
+        summary: string;
+      }>;
+      expect(cached).toEqual([{ key: "TEST-1", summary: "Generic Ticket 1" }]);
+
+      // Still posts success message
+      const lastCall = fetchSpy.mock.calls[fetchSpy.mock.calls.length - 1];
+      expect(lastCall[0]).toBe(REFRESH_RESPONSE_URL);
+    });
+
+    it("posts error to response_url when Jira API throws (network error)", async () => {
+      fetchSpy.mockRejectedValueOnce(new Error("network timeout"));
+      fetchSpy.mockResolvedValueOnce(new Response("{}", { status: 200 }));
+
+      const { capturedPromise } = await issueRequest();
+      await capturedPromise;
+
+      // KV should NOT have been called (error occurred before caching)
+      expect(kvPut).not.toHaveBeenCalled();
+
+      // Error block posted to response_url
+      const responseUrlCalls = fetchSpy.mock.calls.filter((c) => c[0] === REFRESH_RESPONSE_URL);
+      expect(responseUrlCalls.length).toBeGreaterThan(0);
+      const body = JSON.parse(responseUrlCalls[0][1].body as string) as {
+        blocks: Array<{ text?: { text: string } }>;
+      };
+      const text = body.blocks.map((b) => b.text?.text ?? "").join(" ");
+      expect(text).toContain("❌");
+      expect(text).toContain("error");
+    });
+
+    it("degrades gracefully and caches only generic tickets when Jira returns non-ok status", async () => {
+      // Jira service silently breaks out of the loop on non-ok; no error is thrown
+      fetchSpy.mockResolvedValueOnce(mockJsonResponse({ message: "Unauthorized" }, 401));
+      fetchSpy.mockResolvedValueOnce(new Response("{}", { status: 200 }));
+
+      const { capturedPromise } = await issueRequest();
+      await capturedPromise;
+
+      // Caches only generic tickets
+      expect(kvPut).toHaveBeenCalledOnce();
+      const cached = JSON.parse(kvPut.mock.calls[0][1] as string) as Array<{
+        key: string;
+        summary: string;
+      }>;
+      expect(cached).toEqual([{ key: "TEST-1", summary: "Generic Ticket 1" }]);
+
+      // Success message still posted (non-ok is not surfaced as user error)
+      const lastCall = fetchSpy.mock.calls[fetchSpy.mock.calls.length - 1];
+      expect(lastCall[0]).toBe(REFRESH_RESPONSE_URL);
+      const sentBody = JSON.parse(lastCall[1].body as string) as {
+        blocks: Array<{ text?: { text: string } }>;
+      };
+      const blockTexts = sentBody.blocks.map((b) => b.text?.text ?? "").join(" ");
+      expect(blockTexts).toContain("✅ Tickets Actualizados");
+    });
+  });
+
+  // ─── /help ───
+
+  describe("/help", () => {
+    it("returns 200 with ephemeral blocks without scheduling async work", async () => {
+      const request = await createSignedSlackCommandRequest(SIGNING_SECRET, {
+        command: "/help",
+        response_url: "https://hooks.slack.com/commands/test/response",
+      });
+
+      const response = await handleSlackCommand(request, env, mockCtx);
+
+      expect(response.status).toBe(200);
+      const body = (await response.json()) as {
+        response_type: string;
+        blocks: Array<{ type: string }>;
+        text: string;
+      };
+      expect(body.response_type).toBe("ephemeral");
+      expect(Array.isArray(body.blocks)).toBe(true);
+      expect(body.blocks.length).toBeGreaterThan(0);
+      // Synchronous — no async work should be scheduled
+      expect(mockCtx.waitUntil).not.toHaveBeenCalled();
+    });
+
+    it("response blocks contain all 5 command names", async () => {
+      const request = await createSignedSlackCommandRequest(SIGNING_SECRET, {
+        command: "/help",
+        response_url: "https://hooks.slack.com/commands/test/response",
+      });
+
+      const body = (await (await handleSlackCommand(request, env, mockCtx)).json()) as {
+        blocks: Array<{ text?: { text?: string } }>;
+      };
+      const allText = body.blocks.map((b) => b.text?.text ?? "").join("\n");
+
+      expect(allText).toContain("/summary");
+      expect(allText).toContain("/summary-components");
+      expect(allText).toContain("/daily-summary");
+      expect(allText).toContain("/refresh-tickets");
+      expect(allText).toContain("/help");
+    });
+
+    it("response blocks contain a header and a divider", async () => {
+      const request = await createSignedSlackCommandRequest(SIGNING_SECRET, {
+        command: "/help",
+        response_url: "https://hooks.slack.com/commands/test/response",
+      });
+
+      const body = (await (await handleSlackCommand(request, env, mockCtx)).json()) as {
+        blocks: Array<{ type: string }>;
+      };
+
+      expect(body.blocks.some((b) => b.type === "header")).toBe(true);
+      expect(body.blocks.some((b) => b.type === "divider")).toBe(true);
+    });
+
+    it("does not make any external fetch calls", async () => {
+      const request = await createSignedSlackCommandRequest(SIGNING_SECRET, {
+        command: "/help",
+        response_url: "https://hooks.slack.com/commands/test/response",
+      });
+
+      await handleSlackCommand(request, env, mockCtx);
+
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+  });
 });
 
 // ─── validateAndResolveDailySummaryDate (unit tests, no network) ───
