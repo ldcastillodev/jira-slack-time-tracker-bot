@@ -221,7 +221,7 @@ describe("handleSlackCommand", () => {
     };
     env = createMockEnv({ CACHE: mockKV as unknown as KVNamespace });
 
-    fetchSpy.mockResolvedValue(mockJsonResponse({ issues: [], nextPageToken: undefined }));
+    fetchSpy.mockResolvedValue(mockJsonResponse({ tickets: [], nextPageToken: undefined }));
 
     const responseUrl = "https://hooks.slack.com/commands/test/response";
     const request = await createSignedSlackCommandRequest(SIGNING_SECRET, {
@@ -302,7 +302,7 @@ describe("handleSlackCommand", () => {
     };
     env = createMockEnv({ CACHE: mockKV as unknown as KVNamespace });
 
-    fetchSpy.mockResolvedValue(mockJsonResponse({ issues: [], nextPageToken: undefined }));
+    fetchSpy.mockResolvedValue(mockJsonResponse({ tickets: [], nextPageToken: undefined }));
 
     const responseUrl = "https://hooks.slack.com/commands/test/response";
     // Use "lun" — Monday of the current week, which may or may not be in the past.
@@ -352,7 +352,7 @@ describe("handleSlackCommand", () => {
     // Mock Jira API search
     fetchSpy.mockResolvedValue(
       mockJsonResponse({
-        issues: [],
+        tickets: [],
         nextPageToken: undefined,
       }),
     );
@@ -421,7 +421,7 @@ describe("handleSlackCommand", () => {
     }
 
     it("returns 200 with ephemeral loading message and schedules async work", async () => {
-      fetchSpy.mockResolvedValue(mockJsonResponse({ issues: [], nextPageToken: undefined }));
+      fetchSpy.mockResolvedValue(mockJsonResponse({ tickets: [], nextPageToken: undefined }));
 
       const { response } = await issueRequest();
 
@@ -435,7 +435,7 @@ describe("handleSlackCommand", () => {
     it("caches generic + project tickets and posts success blocks", async () => {
       fetchSpy.mockResolvedValueOnce(
         mockJsonResponse({
-          issues: [
+          tickets: [
             {
               key: "PROJ-1",
               fields: {
@@ -483,7 +483,7 @@ describe("handleSlackCommand", () => {
     it("deduplicates when Jira returns a key that matches a generic ticket", async () => {
       fetchSpy.mockResolvedValueOnce(
         mockJsonResponse({
-          issues: [
+          tickets: [
             {
               key: "TEST-1",
               fields: {
@@ -509,7 +509,7 @@ describe("handleSlackCommand", () => {
     });
 
     it("caches only generic tickets when Jira returns no issues", async () => {
-      fetchSpy.mockResolvedValueOnce(mockJsonResponse({ issues: [], nextPageToken: undefined }));
+      fetchSpy.mockResolvedValueOnce(mockJsonResponse({ tickets: [], nextPageToken: undefined }));
       fetchSpy.mockResolvedValueOnce(new Response("{}", { status: 200 }));
 
       const { capturedPromise } = await issueRequest();

@@ -16,7 +16,11 @@ import {
   formatDateSpanishLong,
 } from "../utils/date.ts";
 import { loadConfig } from "../../config/config.ts";
-import { searchIssuesWithWorklogs, buildAccountIdEmailMap } from "../services/jira.ts";
+import {
+  searchAllTickets,
+  buildAccountIdEmailMap,
+  searchTicketsForUser,
+} from "../services/jira.ts";
 import { updateMessageViaResponseUrl, resolveEmailFromSlackId } from "../services/slack.ts";
 import {
   aggregateWeeklyHours,
@@ -210,7 +214,7 @@ async function processSummaryCommand(
     const config = loadConfig();
 
     // Fetch Jira issues for this user in the current week
-    const issues = await searchIssuesWithWorklogs(env, userEmail);
+    const issues = await searchTicketsForUser(env, userEmail);
     const accountEmailMap = await buildAccountIdEmailMap(env, issues);
 
     // Get current week boundaries
@@ -268,7 +272,7 @@ async function processSummaryComponentsCommand(
     }
 
     const config = loadConfig();
-    const issues = await searchIssuesWithWorklogs(env, userEmail);
+    const issues = await searchTicketsForUser(env, userEmail);
     const accountEmailMap = await buildAccountIdEmailMap(env, issues);
 
     const { monday, friday } = getWeekBoundaries(new Date());
@@ -325,7 +329,7 @@ async function processDailySummaryCommand(
     const config = loadConfig();
     const jiraConfig = JSON.parse(env.JIRA_CONFIG) as JiraConfig;
 
-    const issues = await searchIssuesWithWorklogs(env, userEmail);
+    const issues = await searchTicketsForUser(env, userEmail);
     const accountEmailMap = await buildAccountIdEmailMap(env, issues);
 
     const summaries = aggregateUserHours(issues, accountEmailMap, targetDate, [userEmail]);
@@ -366,7 +370,7 @@ async function processRefreshTicketsCommand(responseUrl: string, env: Env): Prom
     const jiraConfig = JSON.parse(env.JIRA_CONFIG) as JiraConfig;
 
     console.log("⏱️ Starting tickets refresh...");
-    const issues = await searchIssuesWithWorklogs(env);
+    const issues = await searchAllTickets(env);
     console.log(`Fetched ${issues.length} issues with worklogs`);
 
     // Cache all tickets in KV for external_select typeahead

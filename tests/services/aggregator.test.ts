@@ -4,8 +4,8 @@ import {
   aggregateWeeklyHours,
   aggregateWeeklyHoursByComponent,
 } from "../../src/services/aggregator.ts";
-import { createMockJiraIssue, createMockWorklog } from "../setup.ts";
-import type { JiraIssue } from "../../src/types/index.ts";
+import { createMockJiraTicket, createMockWorklog } from "../setup.ts";
+import type { JiraTicket } from "../../src/types/index.ts";
 
 describe("aggregateUserHours", () => {
   const targetDate = "2026-04-08";
@@ -15,7 +15,7 @@ describe("aggregateUserHours", () => {
   ]);
 
   it("returns 0 hours for users with no worklogs", () => {
-    const issues: JiraIssue[] = [];
+    const issues: JiraTicket[] = [];
     const result = aggregateUserHours(issues, accountEmailMap, targetDate, ["user1@example.com"]);
 
     const summary = result.get("user1@example.com");
@@ -25,8 +25,8 @@ describe("aggregateUserHours", () => {
   });
 
   it("aggregates hours from multiple worklogs on the target date", () => {
-    const issues: JiraIssue[] = [
-      createMockJiraIssue({
+    const issues: JiraTicket[] = [
+      createMockJiraTicket({
         key: "TEST-100",
         worklogs: [
           createMockWorklog({
@@ -56,8 +56,8 @@ describe("aggregateUserHours", () => {
   });
 
   it("aggregates hours across multiple tickets", () => {
-    const issues: JiraIssue[] = [
-      createMockJiraIssue({
+    const issues: JiraTicket[] = [
+      createMockJiraTicket({
         key: "TEST-100",
         worklogs: [
           createMockWorklog({
@@ -68,13 +68,13 @@ describe("aggregateUserHours", () => {
           }),
         ],
       }),
-      createMockJiraIssue({
+      createMockJiraTicket({
         key: "TEST-200",
         summary: "Another Issue",
         worklogs: [
           createMockWorklog({
             id: "wl-3",
-            issueKey: "TEST-200",
+            ticketKey: "TEST-200",
             started: "2026-04-08T14:00:00.000+0000",
             timeSpentSeconds: 7200,
             authorAccountId: "acc-123",
@@ -92,8 +92,8 @@ describe("aggregateUserHours", () => {
   });
 
   it("filters out worklogs from other dates", () => {
-    const issues: JiraIssue[] = [
-      createMockJiraIssue({
+    const issues: JiraTicket[] = [
+      createMockJiraTicket({
         worklogs: [
           createMockWorklog({
             started: "2026-04-07T10:00:00.000+0000", // yesterday
@@ -119,7 +119,7 @@ describe("aggregateUserHours", () => {
   });
 
   it("pre-populates configured users with 0 hours", () => {
-    const issues: JiraIssue[] = [];
+    const issues: JiraTicket[] = [];
     const result = aggregateUserHours(issues, accountEmailMap, targetDate, [
       "user1@example.com",
       "user2@example.com",
@@ -133,8 +133,8 @@ describe("aggregateUserHours", () => {
   it("dynamically adds unconfigured users found in worklogs", () => {
     const extraMap = new Map([...accountEmailMap, ["acc-789", "external@example.com"]]);
 
-    const issues: JiraIssue[] = [
-      createMockJiraIssue({
+    const issues: JiraTicket[] = [
+      createMockJiraTicket({
         worklogs: [
           createMockWorklog({
             started: "2026-04-08T10:00:00.000+0000",
@@ -154,8 +154,8 @@ describe("aggregateUserHours", () => {
   });
 
   it("resolves email from accountEmailMap when authorEmail is missing", () => {
-    const issues: JiraIssue[] = [
-      createMockJiraIssue({
+    const issues: JiraTicket[] = [
+      createMockJiraTicket({
         worklogs: [
           createMockWorklog({
             started: "2026-04-08T10:00:00.000+0000",
@@ -180,7 +180,7 @@ describe("aggregateWeeklyHours", () => {
   const weekFriday = "2026-04-10";
 
   it("returns breakdown by day (Mon-Fri)", () => {
-    const issues: JiraIssue[] = [];
+    const issues: JiraTicket[] = [];
     const result = aggregateWeeklyHours(
       issues,
       accountEmailMap,
@@ -198,8 +198,8 @@ describe("aggregateWeeklyHours", () => {
   });
 
   it("accumulates hours per day correctly", () => {
-    const issues: JiraIssue[] = [
-      createMockJiraIssue({
+    const issues: JiraTicket[] = [
+      createMockJiraTicket({
         worklogs: [
           createMockWorklog({
             started: "2026-04-06T10:00:00.000+0000", // Monday
@@ -234,8 +234,8 @@ describe("aggregateWeeklyHours", () => {
   });
 
   it("ignores worklogs outside the week range", () => {
-    const issues: JiraIssue[] = [
-      createMockJiraIssue({
+    const issues: JiraTicket[] = [
+      createMockJiraTicket({
         worklogs: [
           createMockWorklog({
             started: "2026-04-05T10:00:00.000+0000", // Sunday (before Monday)
@@ -267,8 +267,8 @@ describe("aggregateWeeklyHours", () => {
   });
 
   it("groups tickets within the same day (weeklyHours)", () => {
-    const issues: JiraIssue[] = [
-      createMockJiraIssue({
+    const issues: JiraTicket[] = [
+      createMockJiraTicket({
         key: "TEST-100",
         worklogs: [
           createMockWorklog({
@@ -279,13 +279,13 @@ describe("aggregateWeeklyHours", () => {
           }),
         ],
       }),
-      createMockJiraIssue({
+      createMockJiraTicket({
         key: "TEST-200",
         summary: "Another Issue",
         worklogs: [
           createMockWorklog({
             id: "wl-3",
-            issueKey: "TEST-200",
+            ticketKey: "TEST-200",
             started: "2026-04-06T14:00:00.000+0000",
             timeSpentSeconds: 7200,
             authorAccountId: "acc-123",
@@ -317,7 +317,7 @@ describe("aggregateWeeklyHoursByComponent", () => {
   const userEmail = "user1@example.com";
 
   it("returns empty components when user has no worklogs", () => {
-    const issues: JiraIssue[] = [];
+    const issues: JiraTicket[] = [];
     const result = aggregateWeeklyHoursByComponent(
       issues,
       accountEmailMap,
@@ -331,8 +331,8 @@ describe("aggregateWeeklyHoursByComponent", () => {
   });
 
   it("groups worklogs by first component of the issue", () => {
-    const issues: JiraIssue[] = [
-      createMockJiraIssue({
+    const issues: JiraTicket[] = [
+      createMockJiraTicket({
         key: "TEST-100",
         components: ["Backend"],
         worklogs: [
@@ -343,14 +343,14 @@ describe("aggregateWeeklyHoursByComponent", () => {
           }),
         ],
       }),
-      createMockJiraIssue({
+      createMockJiraTicket({
         key: "TEST-200",
         summary: "Frontend Issue",
         components: ["Frontend"],
         worklogs: [
           createMockWorklog({
             id: "wl-2",
-            issueKey: "TEST-200",
+            ticketKey: "TEST-200",
             started: "2026-04-07T10:00:00.000+0000",
             timeSpentSeconds: 7200, // 2h
             authorEmail: userEmail,
@@ -377,8 +377,8 @@ describe("aggregateWeeklyHoursByComponent", () => {
   });
 
   it("uses only the first component for multi-component issues", () => {
-    const issues: JiraIssue[] = [
-      createMockJiraIssue({
+    const issues: JiraTicket[] = [
+      createMockJiraTicket({
         key: "TEST-100",
         components: ["Backend", "QA"],
         worklogs: [
@@ -405,8 +405,8 @@ describe("aggregateWeeklyHoursByComponent", () => {
   });
 
   it("groups issues without components under 'Sin Componente'", () => {
-    const issues: JiraIssue[] = [
-      createMockJiraIssue({
+    const issues: JiraTicket[] = [
+      createMockJiraTicket({
         key: "TEST-100",
         components: [],
         worklogs: [
@@ -432,8 +432,8 @@ describe("aggregateWeeklyHoursByComponent", () => {
   });
 
   it("ignores worklogs outside the week range", () => {
-    const issues: JiraIssue[] = [
-      createMockJiraIssue({
+    const issues: JiraTicket[] = [
+      createMockJiraTicket({
         components: ["Backend"],
         worklogs: [
           createMockWorklog({
@@ -463,8 +463,8 @@ describe("aggregateWeeklyHoursByComponent", () => {
   });
 
   it("ignores worklogs from other users", () => {
-    const issues: JiraIssue[] = [
-      createMockJiraIssue({
+    const issues: JiraTicket[] = [
+      createMockJiraTicket({
         components: ["Backend"],
         worklogs: [
           createMockWorklog({
@@ -488,8 +488,8 @@ describe("aggregateWeeklyHoursByComponent", () => {
   });
 
   it("accumulates multiple worklogs in the same component and day", () => {
-    const issues: JiraIssue[] = [
-      createMockJiraIssue({
+    const issues: JiraTicket[] = [
+      createMockJiraTicket({
         key: "TEST-100",
         components: ["Backend"],
         worklogs: [
@@ -523,8 +523,8 @@ describe("aggregateWeeklyHoursByComponent", () => {
   });
 
   it("resolves email from accountEmailMap when authorEmail is absent", () => {
-    const issues: JiraIssue[] = [
-      createMockJiraIssue({
+    const issues: JiraTicket[] = [
+      createMockJiraTicket({
         components: ["Backend"],
         worklogs: [
           createMockWorklog({
