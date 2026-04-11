@@ -60,6 +60,7 @@ export interface JiraIssue {
   assigneeAccountId: string | null;
   assigneeEmail: string | null;
   assigneeDisplayName: string | null;
+  components: string[];
   worklogs: JiraWorklog[];
 }
 
@@ -78,6 +79,7 @@ export interface JiraSearchIssue {
       emailAddress?: string;
       displayName: string;
     } | null;
+    components?: { name: string }[];
     worklog?: {
       total: number;
       maxResults: number;
@@ -136,6 +138,18 @@ export interface WeeklyBreakdown {
   displayName: string;
   weekTotal: number;
   days: DailyBreakdown[];
+}
+
+export interface ComponentBreakdown {
+  componentName: string;
+  weekTotal: number;
+  days: DailyBreakdown[];
+}
+
+export interface WeeklyByComponentBreakdown {
+  email: string;
+  displayName: string;
+  components: ComponentBreakdown[];
 }
 
 // ─── Cached Ticket (KV store for external_select) ───

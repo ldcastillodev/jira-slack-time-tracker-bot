@@ -90,7 +90,7 @@ describe("handleSlackInteraction", () => {
     expect(response.status).toBe(200);
   });
 
-  it("returns 200 and processes submit_hours via waitUntil", async () => {
+  it("returns 200 with JSON 'Procesando...' body and schedules submit_hours via waitUntil", async () => {
     const payload = createMockSlackPayload(
       {
         state: {
@@ -119,13 +119,24 @@ describe("handleSlackInteraction", () => {
       { action_id: "submit_hours", value: "2026-04-08" },
     );
 
-    // Mock the response_url call (sendError or update)
     fetchSpy.mockResolvedValue(new Response("ok", { status: 200 }));
 
     const request = await createSignedSlackRequest(signingSecret, payload);
     const response = await handleSlackInteraction(request, env, mockCtx);
 
     expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("application/json");
+
+    const body = (await response.json()) as {
+      replace_original: boolean;
+      text: string;
+      blocks: unknown[];
+    };
+    expect(body.replace_original).toBe(true);
+    expect(body.text).toContain("Procesando");
+    expect(Array.isArray(body.blocks)).toBe(true);
+    expect(body.blocks.length).toBeGreaterThan(0);
+
     expect(mockCtx.waitUntil).toHaveBeenCalled();
   });
 

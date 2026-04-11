@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { aggregateUserHours, aggregateWeeklyHours } from "../../src/services/aggregator.ts";
+import {
+  aggregateUserHours,
+  aggregateWeeklyHours,
+  aggregateWeeklyHoursByComponent,
+} from "../../src/services/aggregator.ts";
 import { createMockJiraIssue, createMockWorklog } from "../setup.ts";
 import type { JiraIssue } from "../../src/types/index.ts";
 
@@ -262,7 +266,7 @@ describe("aggregateWeeklyHours", () => {
     expect(breakdown!.weekTotal).toBe(0);
   });
 
-  it("groups tickets within the same day", () => {
+  it("groups tickets within the same day (weeklyHours)", () => {
     const issues: JiraIssue[] = [
       createMockJiraIssue({
         key: "TEST-100",
@@ -303,5 +307,245 @@ describe("aggregateWeeklyHours", () => {
     const monday = breakdown!.days[0];
     expect(monday.totalHours).toBe(3);
     expect(monday.tickets).toHaveLength(2);
+  });
+});
+
+describe("aggregateWeeklyHoursByComponent", () => {
+  const weekMonday = "2026-04-06";
+  const weekFriday = "2026-04-10";
+  const accountEmailMap = new Map([["acc-123", "user1@example.com"]]);
+  const userEmail = "user1@example.com";
+
+  it("returns empty components when user has no worklogs", () => {
+    const issues: JiraIssue[] = [];
+    const result = aggregateWeeklyHoursByComponent(
+      issues,
+      accountEmailMap,
+      userEmail,
+      weekMonday,
+      weekFriday,
+    );
+
+    expect(result.email).toBe(userEmail);
+    expect(result.components).toHaveLength(0);
+  });
+
+  it("groups worklogs by first component of the issue", () => {
+    const issues: JiraIssue[] = [
+      createMockJiraIssue({
+        key: "TEST-100",
+        components: ["Backend"],
+        worklogs: [
+          createMockWorklog({
+            started: "2026-04-06T10:00:00.000+0000",
+            timeSpentSeconds: 3600, // 1h
+            authorEmail: userEmail,
+          }),
+        ],
+      }),
+      createMockJiraIssue({
+        key: "TEST-200",
+        summary: "Frontend Issue",
+        components: ["Frontend"],
+        worklogs: [
+          createMockWorklog({
+            id: "wl-2",
+            issueKey: "TEST-200",
+            started: "2026-04-07T10:00:00.000+0000",
+            timeSpentSeconds: 7200, // 2h
+            authorEmail: userEmail,
+          }),
+        ],
+      }),
+    ];
+
+    const result = aggregateWeeklyHoursByComponent(
+      issues,
+      accountEmailMap,
+      userEmail,
+      weekMonday,
+      weekFriday,
+    );
+
+    expect(result.components).toHaveLength(2);
+    const backendComp = result.components.find((c) => c.componentName === "Backend");
+    const frontendComp = result.components.find((c) => c.componentName === "Frontend");
+    expect(backendComp).toBeDefined();
+    expect(backendComp!.weekTotal).toBe(1);
+    expect(frontendComp).toBeDefined();
+    expect(frontendComp!.weekTotal).toBe(2);
+  });
+
+  it("uses only the first component for multi-component issues", () => {
+    const issues: JiraIssue[] = [
+      createMockJiraIssue({
+        key: "TEST-100",
+        components: ["Backend", "QA"],
+        worklogs: [
+          createMockWorklog({
+            started: "2026-04-06T10:00:00.000+0000",
+            timeSpentSeconds: 3600,
+            authorEmail: userEmail,
+          }),
+        ],
+      }),
+    ];
+
+    const result = aggregateWeeklyHoursByComponent(
+      issues,
+      accountEmailMap,
+      userEmail,
+      weekMonday,
+      weekFriday,
+    );
+
+    expect(result.components).toHaveLength(1);
+    expect(result.components[0].componentName).toBe("Backend");
+    expect(result.components.find((c) => c.componentName === "QA")).toBeUndefined();
+  });
+
+  it("groups issues without components under 'Sin Componente'", () => {
+    const issues: JiraIssue[] = [
+      createMockJiraIssue({
+        key: "TEST-100",
+        components: [],
+        worklogs: [
+          createMockWorklog({
+            started: "2026-04-06T10:00:00.000+0000",
+            timeSpentSeconds: 3600,
+            authorEmail: userEmail,
+          }),
+        ],
+      }),
+    ];
+
+    const result = aggregateWeeklyHoursByComponent(
+      issues,
+      accountEmailMap,
+      userEmail,
+      weekMonday,
+      weekFriday,
+    );
+
+    expect(result.components).toHaveLength(1);
+    expect(result.components[0].componentName).toBe("Sin Componente");
+  });
+
+  it("ignores worklogs outside the week range", () => {
+    const issues: JiraIssue[] = [
+      createMockJiraIssue({
+        components: ["Backend"],
+        worklogs: [
+          createMockWorklog({
+            started: "2026-04-05T10:00:00.000+0000", // Sunday (before week)
+            timeSpentSeconds: 3600,
+            authorEmail: userEmail,
+          }),
+          createMockWorklog({
+            id: "wl-2",
+            started: "2026-04-11T10:00:00.000+0000", // Saturday (after week)
+            timeSpentSeconds: 3600,
+            authorEmail: userEmail,
+          }),
+        ],
+      }),
+    ];
+
+    const result = aggregateWeeklyHoursByComponent(
+      issues,
+      accountEmailMap,
+      userEmail,
+      weekMonday,
+      weekFriday,
+    );
+
+    expect(result.components).toHaveLength(0);
+  });
+
+  it("ignores worklogs from other users", () => {
+    const issues: JiraIssue[] = [
+      createMockJiraIssue({
+        components: ["Backend"],
+        worklogs: [
+          createMockWorklog({
+            started: "2026-04-06T10:00:00.000+0000",
+            timeSpentSeconds: 3600,
+            authorEmail: "other@example.com",
+          }),
+        ],
+      }),
+    ];
+
+    const result = aggregateWeeklyHoursByComponent(
+      issues,
+      accountEmailMap,
+      userEmail,
+      weekMonday,
+      weekFriday,
+    );
+
+    expect(result.components).toHaveLength(0);
+  });
+
+  it("accumulates multiple worklogs in the same component and day", () => {
+    const issues: JiraIssue[] = [
+      createMockJiraIssue({
+        key: "TEST-100",
+        components: ["Backend"],
+        worklogs: [
+          createMockWorklog({
+            started: "2026-04-06T09:00:00.000+0000",
+            timeSpentSeconds: 3600, // 1h
+            authorEmail: userEmail,
+          }),
+          createMockWorklog({
+            id: "wl-2",
+            started: "2026-04-06T14:00:00.000+0000",
+            timeSpentSeconds: 7200, // 2h
+            authorEmail: userEmail,
+          }),
+        ],
+      }),
+    ];
+
+    const result = aggregateWeeklyHoursByComponent(
+      issues,
+      accountEmailMap,
+      userEmail,
+      weekMonday,
+      weekFriday,
+    );
+
+    const backendComp = result.components.find((c) => c.componentName === "Backend");
+    expect(backendComp!.weekTotal).toBe(3);
+    const mondayEntry = backendComp!.days.find((d) => d.date === "2026-04-06");
+    expect(mondayEntry!.totalHours).toBe(3);
+  });
+
+  it("resolves email from accountEmailMap when authorEmail is absent", () => {
+    const issues: JiraIssue[] = [
+      createMockJiraIssue({
+        components: ["Backend"],
+        worklogs: [
+          createMockWorklog({
+            started: "2026-04-06T10:00:00.000+0000",
+            timeSpentSeconds: 3600,
+            authorAccountId: "acc-123",
+            authorEmail: undefined,
+          }),
+        ],
+      }),
+    ];
+
+    const result = aggregateWeeklyHoursByComponent(
+      issues,
+      accountEmailMap,
+      userEmail,
+      weekMonday,
+      weekFriday,
+    );
+
+    expect(result.components).toHaveLength(1);
+    expect(result.components[0].weekTotal).toBe(1);
   });
 });

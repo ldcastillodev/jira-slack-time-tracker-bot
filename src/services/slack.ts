@@ -93,7 +93,7 @@ export async function updateMessageViaResponseUrl(
 
 /**
  * Resolves a configured user's email from their Slack user ID.
- * Checks the KV cache for reverse mappings (email → slackId).
+ * Checks the KV cache first, then falls back to Slack lookups for configured emails.
  */
 export async function resolveEmailFromSlackId(
   env: Env,
@@ -106,5 +106,13 @@ export async function resolveEmailFromSlackId(
       return email;
     }
   }
+
+  for (const email of configuredEmails) {
+    const resolvedSlackUserId = await lookupUserByEmail(env, email);
+    if (resolvedSlackUserId === slackUserId) {
+      return email;
+    }
+  }
+
   return null;
 }

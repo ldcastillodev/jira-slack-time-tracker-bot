@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   lookupUserByEmail,
+  resolveEmailFromSlackId,
   sendDirectMessage,
   updateMessageViaResponseUrl,
 } from "../../src/services/slack.ts";
@@ -98,6 +99,57 @@ describe("slack service", () => {
 
       const result = await lookupUserByEmail(env, "user1@example.com");
       expect(result).toBeNull();
+    });
+  });
+
+  describe("resolveEmailFromSlackId", () => {
+    it("returns the cached email without calling Slack API", async () => {
+      const mockKV = {
+        get: vi.fn().mockImplementation(async (key: string) => {
+          if (key === "slack_user:user2@example.com") {
+            return "U12345";
+          }
+
+          return null;
+        }),
+        put: vi.fn(),
+        delete: vi.fn(),
+        list: vi.fn(),
+        getWithMetadata: vi.fn(),
+      };
+      env = createMockEnv({ CACHE: mockKV as unknown as KVNamespace });
+
+      const result = await resolveEmailFromSlackId(env, "U12345", [
+        "user1@example.com",
+        "user2@example.com",
+      ]);
+
+      expect(result).toBe("user2@example.com");
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it("falls back to Slack lookup when KV misses", async () => {
+      const mockKV = {
+        get: vi.fn().mockResolvedValue(null),
+        put: vi.fn().mockResolvedValue(undefined),
+        delete: vi.fn(),
+        list: vi.fn(),
+        getWithMetadata: vi.fn(),
+      };
+      env = createMockEnv({ CACHE: mockKV as unknown as KVNamespace });
+
+      fetchSpy
+        .mockResolvedValueOnce(mockJsonResponse({ ok: true, user: { id: "U11111" } }))
+        .mockResolvedValueOnce(mockJsonResponse({ ok: true, user: { id: "U12345" } }));
+
+      const result = await resolveEmailFromSlackId(env, "U12345", [
+        "user1@example.com",
+        "user2@example.com",
+      ]);
+
+      expect(result).toBe("user2@example.com");
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+      expect(mockKV.put).toHaveBeenCalledTimes(2);
     });
   });
 

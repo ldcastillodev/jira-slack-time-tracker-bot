@@ -54,6 +54,7 @@ export function createMockJiraIssue(overrides: Partial<JiraIssue> = {}): JiraIss
     assigneeAccountId: "acc-123",
     assigneeEmail: "user1@example.com",
     assigneeDisplayName: "User One",
+    components: [],
     worklogs: [],
     ...overrides,
   };

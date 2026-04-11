@@ -40,6 +40,7 @@ export async function searchIssuesWithWorklogs(env: Env, email?: string): Promis
   const componentList = jiraConfig.jira.projectComponents.map((c) => `"${c.name}"`).join(", ");
   const users = JSON.parse(env.USERS) as JiraUsers;
   // fetch issues that are in project components, to ensure we get all relevant worklogs for the day.
+  // TODO: UPDATE QUERY const jql = `project in (${boardList}) AND component IN (${componentList})${email && users[email] ? ` AND worklogDate >= -1w AND worklogAuthor = currentUser()` : ""}`;
   const jql = `project in (${boardList}) AND component IN (${componentList})${email && users[email] ? ` AND worklogAuthor = currentUser()` : ""}`;
 
   const fields = [
@@ -99,6 +100,7 @@ export async function searchIssuesWithWorklogs(env: Env, email?: string): Promis
       assigneeAccountId: raw.fields.assignee?.accountId ?? null,
       assigneeEmail: raw.fields.assignee?.emailAddress ?? null,
       assigneeDisplayName: raw.fields.assignee?.displayName ?? null,
+      components: raw.fields.components?.map((c) => c.name) ?? [],
       worklogs,
     });
   }

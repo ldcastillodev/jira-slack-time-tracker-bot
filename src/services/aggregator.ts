@@ -1,4 +1,10 @@
-import type { JiraIssue, UserHoursSummary, WeeklyBreakdown } from "../types/index.ts";
+import type {
+  JiraIssue,
+  UserHoursSummary,
+  WeeklyBreakdown,
+  ComponentBreakdown,
+  WeeklyByComponentBreakdown,
+} from "../types/index.ts";
 
 /**
  * Aggregates daily hours. Configured users are pre-loaded (to show 0 hours if inactive),
@@ -167,6 +173,69 @@ export function aggregateWeeklyHours(
   }
 
   return breakdowns;
+}
+
+/**
+ * Aggregates the weekly hours of a single user grouped by Jira component.
+ * Each worklog is attributed to the FIRST component of its issue.
+ * Issues with no components use the label "Sin Componente".
+ */
+export function aggregateWeeklyHoursByComponent(
+  issues: JiraIssue[],
+  accountEmailMap: Map<string, string>,
+  userEmail: string,
+  weekMonday: string,
+  weekFriday: string,
+): WeeklyByComponentBreakdown {
+  const weekDates = getWeekDates(weekMonday, weekFriday);
+  const componentMap = new Map<string, ComponentBreakdown>();
+  let displayName = userEmail.split("@")[0];
+
+  const getOrCreateComponent = (name: string): ComponentBreakdown => {
+    if (!componentMap.has(name)) {
+      componentMap.set(name, {
+        componentName: name,
+        weekTotal: 0,
+        days: weekDates.map((date) => ({ date, totalHours: 0, tickets: [] })),
+      });
+    }
+    return componentMap.get(name)!;
+  };
+
+  for (const issue of issues) {
+    const componentName = issue.components[0] ?? "Sin Componente";
+
+    for (const wl of issue.worklogs) {
+      const wlDate = wl.started.substring(0, 10);
+      if (wlDate < weekMonday || wlDate > weekFriday) continue;
+
+      const authorEmail = wl.authorEmail ?? accountEmailMap.get(wl.authorAccountId);
+      if (!authorEmail || authorEmail.toLowerCase() !== userEmail.toLowerCase()) continue;
+
+      if (wl.authorDisplayName) displayName = wl.authorDisplayName;
+
+      const comp = getOrCreateComponent(componentName);
+      const hours = wl.timeSpentSeconds / 3600;
+      comp.weekTotal += hours;
+
+      const dayEntry = comp.days.find((d) => d.date === wlDate);
+      if (dayEntry) {
+        dayEntry.totalHours += hours;
+        const existing = dayEntry.tickets.find((t) => t.key === issue.key);
+        if (existing) {
+          existing.hours += hours;
+        } else {
+          dayEntry.tickets.push({ key: issue.key, summary: issue.summary, hours });
+        }
+      }
+    }
+  }
+
+  return {
+    email: userEmail,
+    displayName,
+    components: Array.from(componentMap.values()),
+  };
 }
 
 /** Generates a list of date strings from monday to friday. */
