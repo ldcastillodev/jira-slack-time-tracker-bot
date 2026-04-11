@@ -46,8 +46,8 @@ export default {
   async scheduled(
     _controller: ScheduledController,
     env: Env,
-    ctx: ExecutionContext,
+    _ctx: ExecutionContext,
   ): Promise<void> {
-    ctx.waitUntil(handleScheduled(env));
+    await handleScheduled(env);
   },
 };

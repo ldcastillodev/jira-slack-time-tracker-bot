@@ -62,9 +62,26 @@ export async function handleSlackInteraction(
   }
 
   if (actionId === "submit_hours") {
-    // Process async to respond within 3 seconds
+    // Process async to respond within 3 seconds.
+    // The immediate JSON body replaces the message with a "processing" state in Slack
+    // before the async work resolves with the final result.
     ctx.waitUntil(processSubmitHours(payload, env));
-    return new Response("", { status: 200 });
+    return new Response(
+      JSON.stringify({
+        replace_original: true,
+        text: "⏳ Procesando carga de horas...",
+        blocks: [
+          {
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: "⏳ *Procesando carga de horas...* Por favor espera.",
+            },
+          },
+        ],
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
   }
 
   if (actionId === "add_slot") {
@@ -270,7 +287,20 @@ async function processSubmitHours(payload: SlackInteractionPayload, env: Env): P
       return;
     }
 
-    // ── 11. Build confirmation ──
+    // ── 11. Structured audit log ──
+    console.log(
+      JSON.stringify({
+        event: "worklog_submitted",
+        user: userEmail,
+        date: targetDate,
+        tickets: succeeded.map((s) => ({ key: s.ticketKey, hours: s.hours })),
+        failedTickets: failed,
+        totalHoursSubmitted: succeeded.reduce((sum, s) => sum + s.hours, 0),
+        timestamp: new Date().toISOString(),
+      }),
+    );
+
+    // ── 13. Build confirmation ──
     const updatedIssues = await searchIssuesWithWorklogs(env, userEmail);
     const updatedAccountMap = await buildAccountIdEmailMap(env, updatedIssues);
     const updatedSummaries = aggregateUserHours(updatedIssues, updatedAccountMap, targetDate, [

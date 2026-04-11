@@ -8,6 +8,10 @@ import {
   isSameCalendarWeek,
   toJiraStartedFormat,
   dateStringToEpochMs,
+  getDayOfWeekFromSpanishAbbrev,
+  getDateForDayOfCurrentWeek,
+  getDayOfWeekET,
+  formatDateSpanishLong,
 } from "../../src/utils/date.ts";
 
 describe("date utils", () => {
@@ -130,6 +134,124 @@ describe("date utils", () => {
     it("converts date string to epoch milliseconds", () => {
       const result = dateStringToEpochMs("2026-04-08");
       expect(result).toBe(new Date("2026-04-08T00:00:00Z").getTime());
+    });
+  });
+
+  describe("getDayOfWeekFromSpanishAbbrev", () => {
+    it("maps lun → 1 (Monday)", () => {
+      expect(getDayOfWeekFromSpanishAbbrev("lun")).toBe(1);
+    });
+
+    it("maps mar → 2 (Tuesday)", () => {
+      expect(getDayOfWeekFromSpanishAbbrev("mar")).toBe(2);
+    });
+
+    it("maps mie → 3 (Wednesday)", () => {
+      expect(getDayOfWeekFromSpanishAbbrev("mie")).toBe(3);
+    });
+
+    it("maps jue → 4 (Thursday)", () => {
+      expect(getDayOfWeekFromSpanishAbbrev("jue")).toBe(4);
+    });
+
+    it("maps vie → 5 (Friday)", () => {
+      expect(getDayOfWeekFromSpanishAbbrev("vie")).toBe(5);
+    });
+
+    it("returns null for invalid abbreviation", () => {
+      expect(getDayOfWeekFromSpanishAbbrev("sab")).toBeNull();
+      expect(getDayOfWeekFromSpanishAbbrev("dom")).toBeNull();
+      expect(getDayOfWeekFromSpanishAbbrev("invalid")).toBeNull();
+      expect(getDayOfWeekFromSpanishAbbrev("")).toBeNull();
+    });
+
+    it("is case-insensitive", () => {
+      expect(getDayOfWeekFromSpanishAbbrev("LUN")).toBe(1);
+      expect(getDayOfWeekFromSpanishAbbrev("VIE")).toBe(5);
+    });
+  });
+
+  describe("getDayOfWeekET", () => {
+    it("returns 1 for Monday", () => {
+      // 2026-04-06 is a Monday
+      expect(getDayOfWeekET("2026-04-06")).toBe(1);
+    });
+
+    it("returns 3 for Wednesday", () => {
+      // 2026-04-08 is a Wednesday
+      expect(getDayOfWeekET("2026-04-08")).toBe(3);
+    });
+
+    it("returns 5 for Friday", () => {
+      // 2026-04-10 is a Friday
+      expect(getDayOfWeekET("2026-04-10")).toBe(5);
+    });
+
+    it("returns 6 for Saturday", () => {
+      // 2026-04-11 is a Saturday
+      expect(getDayOfWeekET("2026-04-11")).toBe(6);
+    });
+
+    it("returns 7 for Sunday", () => {
+      // 2026-04-12 is a Sunday
+      expect(getDayOfWeekET("2026-04-12")).toBe(7);
+    });
+  });
+
+  describe("formatDateSpanishLong", () => {
+    it("formats Friday April 10 2026 correctly", () => {
+      const result = formatDateSpanishLong("2026-04-10");
+      expect(result).toBe("viernes 10 de abril de 2026");
+    });
+
+    it("formats Monday April 6 2026 correctly", () => {
+      const result = formatDateSpanishLong("2026-04-06");
+      expect(result).toBe("lunes 6 de abril de 2026");
+    });
+
+    it("formats a date in January correctly", () => {
+      const result = formatDateSpanishLong("2026-01-01");
+      expect(result).toBe("jueves 1 de enero de 2026");
+    });
+
+    it("formats a date in December correctly", () => {
+      const result = formatDateSpanishLong("2026-12-25");
+      expect(result).toBe("viernes 25 de diciembre de 2026");
+    });
+  });
+
+  describe("getDateForDayOfCurrentWeek", () => {
+    // This test uses the actual current week, so we verify structural correctness
+    it("returns a yyyy-MM-dd string for each day", () => {
+      for (let day = 1; day <= 5; day++) {
+        const result = getDateForDayOfCurrentWeek(day);
+        expect(result).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      }
+    });
+
+    it("returns the correct day relative to Monday", () => {
+      const monday = getDateForDayOfCurrentWeek(1);
+      const friday = getDateForDayOfCurrentWeek(5);
+
+      const [my, mm, md] = monday.split("-").map(Number);
+      const [fy, fm, fd] = friday.split("-").map(Number);
+
+      const mondayDate = new Date(my, mm - 1, md);
+      const fridayDate = new Date(fy, fm - 1, fd);
+
+      // Friday should be exactly 4 days after Monday
+      const diffDays = (fridayDate.getTime() - mondayDate.getTime()) / (1000 * 60 * 60 * 24);
+      expect(diffDays).toBe(4);
+    });
+
+    it("Monday is always a Monday (day of week = 1)", () => {
+      const monday = getDateForDayOfCurrentWeek(1);
+      expect(getDayOfWeekET(monday)).toBe(1);
+    });
+
+    it("Friday is always a Friday (day of week = 5)", () => {
+      const friday = getDateForDayOfCurrentWeek(5);
+      expect(getDayOfWeekET(friday)).toBe(5);
     });
   });
 });

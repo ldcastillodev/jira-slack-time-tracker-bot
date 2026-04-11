@@ -4,6 +4,7 @@ import type {
   SlackElement,
   UserHoursSummary,
   WeeklyBreakdown,
+  WeeklyByComponentBreakdown,
   TrackerConfig,
   JiraConfig,
   ExistingSelection,
@@ -28,7 +29,11 @@ function dayLabel(dateStr: string): string {
 
 // ─── Core Message: Regla General (always included) ───
 
-function buildHoursBreakdown(summary: UserHoursSummary, dailyTarget: number): SlackBlock[] {
+function buildHoursBreakdown(
+  summary: UserHoursSummary,
+  dailyTarget: number,
+  dateLabel?: string,
+): SlackBlock[] {
   const blocks: SlackBlock[] = [];
 
   // Header
@@ -43,11 +48,13 @@ function buildHoursBreakdown(summary: UserHoursSummary, dailyTarget: number): Sl
       ? `✅ *${summary.totalHours.toFixed(1)}h* / ${dailyTarget}h — ¡Completo!`
       : `⏳ *${summary.totalHours.toFixed(1)}h* / ${dailyTarget}h — Faltan *${(dailyTarget - summary.totalHours).toFixed(1)}h*`;
 
+  const dateLine = dateLabel ? `\n📅 *${dateLabel}*` : "";
+
   blocks.push({
     type: "section",
     text: {
       type: "mrkdwn",
-      text: `👋 Hola *${summary.displayName}*\n\n${status}`,
+      text: `👋 Hola *${summary.displayName}*${dateLine}\n\n${status}`,
     },
   });
 
@@ -95,7 +102,7 @@ function buildInteractiveSection(
     type: "section",
     text: {
       type: "mrkdwn",
-      text: `🔔 Te faltan *${remaining.toFixed(1)}h* para llegar a ${config.tracking.dailyTarget}h. ¡Carga tus horas directamente desde aquí!\n_Puedes usar hasta ${effectiveSlotCount} ranuras. Las que dejes vacías serán ignoradas._`,
+      text: `🔔 Te faltan *${remaining.toFixed(1)}h* para llegar a ${config.tracking.dailyTarget}h. ¡Carga tus horas directamente desde aquí!`,
     },
   });
 
@@ -178,7 +185,7 @@ function buildInteractiveSection(
     actionElements.push({
       type: "button",
       action_id: "add_slot",
-      text: { type: "plain_text", text: "➕ Agregar ticket", emoji: true },
+      text: { type: "plain_text", text: "➕ Agregar ranura extra", emoji: true },
       value: `${effectiveSlotCount}:${targetDate}`,
     });
   }
@@ -283,6 +290,8 @@ export function buildConfirmationMessage(
  * Builds the full daily message for a user.
  * - Scenario A (< dailyTarget): breakdown + interactive dropdown
  * - Scenario B (>= dailyTarget): breakdown only (informational)
+ *
+ * @param dateLabel - Optional Spanish long-form date label (e.g. "jueves 9 de abril de 2026")
  */
 export function buildDailyMessage(
   summary: UserHoursSummary,
@@ -291,8 +300,9 @@ export function buildDailyMessage(
   jiraConfig: JiraConfig,
   slotCount?: number,
   existingSelections?: ExistingSelection[],
+  dateLabel?: string,
 ): SlackBlock[] {
-  const blocks = buildHoursBreakdown(summary, config.tracking.dailyTarget);
+  const blocks = buildHoursBreakdown(summary, config.tracking.dailyTarget, dateLabel);
 
   if (summary.totalHours < config.tracking.dailyTarget) {
     blocks.push(
@@ -318,4 +328,67 @@ export function buildWeeklyMessage(
   config: TrackerConfig,
 ): SlackBlock[] {
   return [...buildWeeklySummaryBlocks(weeklySummary, config.tracking.weeklyTarget)];
+}
+
+/**
+ * Builds a weekly summary grouped by Jira component for a single user.
+ */
+export function buildWeeklyByComponentMessage(
+  breakdown: WeeklyByComponentBreakdown,
+  _config: TrackerConfig,
+  weekMonday: string,
+  weekFriday: string,
+): SlackBlock[] {
+  const blocks: SlackBlock[] = [];
+
+  blocks.push({
+    type: "header",
+    text: { type: "plain_text", text: "🧩 Resumen Semanal por Componente", emoji: true },
+  });
+
+  blocks.push({
+    type: "section",
+    text: {
+      type: "mrkdwn",
+      text: `👋 Hola *${breakdown.displayName}* | Semana: ${weekMonday} – ${weekFriday}`,
+    },
+  });
+
+  if (breakdown.components.length === 0) {
+    blocks.push({
+      type: "section",
+      text: { type: "mrkdwn", text: "_No hay horas registradas esta semana._" },
+    });
+    return blocks;
+  }
+
+  for (const comp of breakdown.components) {
+    blocks.push({ type: "divider" });
+    blocks.push({
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `🔷 *${comp.componentName}* — *${comp.weekTotal.toFixed(1)}h*`,
+      },
+    });
+
+    let dayBreakdown = "";
+    for (const day of comp.days) {
+      if (day.totalHours === 0) continue;
+      const icon = day.totalHours >= 8 ? "✅" : "⏳";
+      dayBreakdown += `${icon} *${dayLabel(day.date)}* (${day.date}): *${day.totalHours.toFixed(1)}h*\n`;
+      for (const t of day.tickets) {
+        dayBreakdown += `      • \`${t.key}\` ${t.summary} — ${t.hours.toFixed(1)}h\n`;
+      }
+    }
+
+    if (dayBreakdown) {
+      blocks.push({
+        type: "section",
+        text: { type: "mrkdwn", text: dayBreakdown.trimEnd() },
+      });
+    }
+  }
+
+  return blocks;
 }

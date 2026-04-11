@@ -115,16 +115,35 @@ On submit, the backend dynamically detects the number of slots from `state.value
 
 ## Slash Commands
 
-| Command    | Description                                                                                                                   |
-| ---------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `/summary` | Returns your **weekly hour summary** — total hours logged Mon–Fri vs. the 40h target, with a day-by-day breakdown per ticket. |
+| Command                | Description                                                                                    | Parameters                                     |
+| ---------------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| `/summary`             | Your **weekly hour summary** — total Mon–Fri vs. 40h target, day-by-day breakdown per ticket.  | —                                              |
+| `/summary-components`  | Your **weekly summary grouped by Jira component** — hours per component, then per day.         | —                                              |
+| `/daily-summary [dia]` | Your **daily hour summary on demand** — reuses the same interactive form to log missing hours. | `lun`, `mar`, `mie`, `jue`, `vie` _(optional)_ |
 
-### How it works
+### `/daily-summary` validation rules
+
+- **No parameter** → returns today's summary (only valid Mon–Fri; returns an error on weekends).
+- **With parameter** → returns the summary for the given day of the **current week**.
+- **Restriction:** Only days of the current week are allowed. Past weeks and future days are rejected.
+- Valid values: `lun` (Monday), `mar` (Tuesday), `mie` (Wednesday), `jue` (Thursday), `vie` (Friday).
+
+**Examples:**
+
+```sh
+/daily-summary          # Today's summary (Mon-Fri only)
+/daily-summary lun      # Monday of the current week
+/daily-summary jue      # Thursday of the current week
+```
+
+### How commands work
 
 1. Slack sends a `POST` to `/slack/commands` with your Slack user ID.
-2. The bot immediately responds with an ephemeral _"⏳ Generando tu resumen semanal..."_ (within the 3-second Slack limit).
-3. Asynchronously, it fetches the current week's worklogs from Jira, aggregates them, builds a Block Kit weekly message, and replaces the loading message via `response_url`.
+2. The bot immediately responds with an ephemeral loading message (within the 3-second Slack limit).
+3. Asynchronously, it fetches worklogs from Jira, aggregates them, builds a Block Kit message, and replaces the loading message via `response_url`.
 4. If something goes wrong (user not found, Jira error), you receive a friendly ephemeral error instead.
+
+> **Note:** The two new commands (`/summary-components` and `/daily-summary`) must be registered in your Slack App dashboard pointing to the same `/slack/commands` endpoint.
 
 ### Adding new commands
 

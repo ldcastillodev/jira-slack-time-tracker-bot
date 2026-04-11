@@ -3,10 +3,12 @@ import {
   buildDailyMessage,
   buildWeeklyMessage,
   buildConfirmationMessage,
+  buildWeeklyByComponentMessage,
 } from "../../src/builders/message-builder.ts";
 import type {
   UserHoursSummary,
   WeeklyBreakdown,
+  WeeklyByComponentBreakdown,
   TrackerConfig,
   JiraConfig,
 } from "../../src/types/index.ts";
@@ -281,5 +283,198 @@ describe("buildConfirmationMessage", () => {
 
     const remainingBlock = blocks.find((b) => b.text?.text?.includes("Aún te faltan"));
     expect(remainingBlock).toBeUndefined();
+  });
+});
+
+describe("buildDailyMessage with dateLabel", () => {
+  it("includes the date label in the greeting block when provided", () => {
+    const summary: UserHoursSummary = {
+      email: "user1@example.com",
+      displayName: "User One",
+      totalHours: 4,
+      workedTickets: [],
+      ticketKeys: [],
+    };
+
+    const blocks = buildDailyMessage(
+      summary,
+      config,
+      "2026-04-09",
+      jiraConfig,
+      undefined,
+      undefined,
+      "jueves 9 de abril de 2026",
+    );
+
+    const greetingBlock = blocks.find(
+      (b) => b.text?.type === "mrkdwn" && b.text.text.includes("Hola"),
+    );
+    expect(greetingBlock).toBeDefined();
+    expect(greetingBlock!.text!.text).toContain("jueves 9 de abril de 2026");
+    expect(greetingBlock!.text!.text).toContain("📅");
+  });
+
+  it("does NOT include the date label when not provided", () => {
+    const summary: UserHoursSummary = {
+      email: "user1@example.com",
+      displayName: "User One",
+      totalHours: 4,
+      workedTickets: [],
+      ticketKeys: [],
+    };
+
+    const blocks = buildDailyMessage(summary, config, "2026-04-09", jiraConfig);
+
+    const greetingBlock = blocks.find(
+      (b) => b.text?.type === "mrkdwn" && b.text.text.includes("Hola"),
+    );
+    expect(greetingBlock).toBeDefined();
+    expect(greetingBlock!.text!.text).not.toContain("📅");
+  });
+});
+
+describe("buildWeeklyByComponentMessage", () => {
+  const weekMonday = "2026-04-06";
+  const weekFriday = "2026-04-10";
+
+  it("renders header and greeting with week range", () => {
+    const breakdown: WeeklyByComponentBreakdown = {
+      email: "user1@example.com",
+      displayName: "Juan Pérez",
+      components: [],
+    };
+
+    const blocks = buildWeeklyByComponentMessage(breakdown, config, weekMonday, weekFriday);
+
+    const header = blocks.find((b) => b.type === "header");
+    expect(header).toBeDefined();
+    expect(header!.text!.text).toContain("Componente");
+
+    const greeting = blocks.find((b) => b.text?.text?.includes("Juan Pérez"));
+    expect(greeting).toBeDefined();
+    expect(greeting!.text!.text).toContain(weekMonday);
+    expect(greeting!.text!.text).toContain(weekFriday);
+  });
+
+  it("shows empty message when no components have hours", () => {
+    const breakdown: WeeklyByComponentBreakdown = {
+      email: "user1@example.com",
+      displayName: "Juan Pérez",
+      components: [],
+    };
+
+    const blocks = buildWeeklyByComponentMessage(breakdown, config, weekMonday, weekFriday);
+
+    const emptyBlock = blocks.find((b) => b.text?.text?.includes("No hay horas"));
+    expect(emptyBlock).toBeDefined();
+  });
+
+  it("renders each component with its total hours", () => {
+    const breakdown: WeeklyByComponentBreakdown = {
+      email: "user1@example.com",
+      displayName: "Juan Pérez",
+      components: [
+        {
+          componentName: "Backend",
+          weekTotal: 5,
+          days: [
+            {
+              date: "2026-04-06",
+              totalHours: 5,
+              tickets: [{ key: "PROJ-1", summary: "Fix", hours: 5 }],
+            },
+            { date: "2026-04-07", totalHours: 0, tickets: [] },
+            { date: "2026-04-08", totalHours: 0, tickets: [] },
+            { date: "2026-04-09", totalHours: 0, tickets: [] },
+            { date: "2026-04-10", totalHours: 0, tickets: [] },
+          ],
+        },
+        {
+          componentName: "Frontend",
+          weekTotal: 3,
+          days: [
+            { date: "2026-04-06", totalHours: 0, tickets: [] },
+            {
+              date: "2026-04-07",
+              totalHours: 3,
+              tickets: [{ key: "PROJ-2", summary: "UI fix", hours: 3 }],
+            },
+            { date: "2026-04-08", totalHours: 0, tickets: [] },
+            { date: "2026-04-09", totalHours: 0, tickets: [] },
+            { date: "2026-04-10", totalHours: 0, tickets: [] },
+          ],
+        },
+      ],
+    };
+
+    const blocks = buildWeeklyByComponentMessage(breakdown, config, weekMonday, weekFriday);
+
+    const backendBlock = blocks.find((b) => b.text?.text?.includes("Backend"));
+    expect(backendBlock).toBeDefined();
+    expect(backendBlock!.text!.text).toContain("5.0h");
+
+    const frontendBlock = blocks.find((b) => b.text?.text?.includes("Frontend"));
+    expect(frontendBlock).toBeDefined();
+    expect(frontendBlock!.text!.text).toContain("3.0h");
+  });
+
+  it("shows ticket keys in the day breakdown", () => {
+    const breakdown: WeeklyByComponentBreakdown = {
+      email: "user1@example.com",
+      displayName: "Juan Pérez",
+      components: [
+        {
+          componentName: "Backend",
+          weekTotal: 4,
+          days: [
+            {
+              date: "2026-04-06",
+              totalHours: 4,
+              tickets: [{ key: "PROJ-123", summary: "Auth feature", hours: 4 }],
+            },
+            { date: "2026-04-07", totalHours: 0, tickets: [] },
+            { date: "2026-04-08", totalHours: 0, tickets: [] },
+            { date: "2026-04-09", totalHours: 0, tickets: [] },
+            { date: "2026-04-10", totalHours: 0, tickets: [] },
+          ],
+        },
+      ],
+    };
+
+    const blocks = buildWeeklyByComponentMessage(breakdown, config, weekMonday, weekFriday);
+
+    const dayBlock = blocks.find((b) => b.text?.text?.includes("PROJ-123"));
+    expect(dayBlock).toBeDefined();
+    expect(dayBlock!.text!.text).toContain("Auth feature");
+  });
+
+  it("skips days with 0 hours in the component breakdown", () => {
+    const breakdown: WeeklyByComponentBreakdown = {
+      email: "user1@example.com",
+      displayName: "Juan Pérez",
+      components: [
+        {
+          componentName: "Backend",
+          weekTotal: 2,
+          days: [
+            {
+              date: "2026-04-06",
+              totalHours: 2,
+              tickets: [{ key: "PROJ-1", summary: "Work", hours: 2 }],
+            },
+            { date: "2026-04-07", totalHours: 0, tickets: [] },
+            { date: "2026-04-08", totalHours: 0, tickets: [] },
+            { date: "2026-04-09", totalHours: 0, tickets: [] },
+            { date: "2026-04-10", totalHours: 0, tickets: [] },
+          ],
+        },
+      ],
+    };
+
+    const blocks = buildWeeklyByComponentMessage(breakdown, config, weekMonday, weekFriday);
+
+    // Only one day has hours, so only that day should appear in the breakdown
+    const dayBlock = blocks.find((b) => b.text?.text?.includes("2026-04-07"));
+    expect(dayBlock).toBeUndefined();
   });
 });
