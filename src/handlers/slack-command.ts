@@ -8,7 +8,7 @@ import {
   getDateForDayOfCurrentWeek,
   formatDateSpanishLong,
 } from "../utils/date.ts";
-import { loadConfig } from "../config.ts";
+import { loadConfig } from "../../config/config.ts";
 import { searchIssuesWithWorklogs, buildAccountIdEmailMap } from "../services/jira.ts";
 import { updateMessageViaResponseUrl, resolveEmailFromSlackId } from "../services/slack.ts";
 import {

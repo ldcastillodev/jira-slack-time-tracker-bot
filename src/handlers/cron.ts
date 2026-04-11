@@ -1,6 +1,6 @@
 import type { Env, JiraConfig, JiraUsers, SlackBlock, CachedTicket } from "../types/index.ts";
-import { CACHE_KEY_ALL_TICKETS, TTL_ALL_TICKETS } from "../constants.ts";
-import { loadConfig } from "../config.ts";
+import { CACHE_KEY_ALL_TICKETS, TTL_ALL_TICKETS } from "../constants/constants.ts";
+import { loadConfig } from "../../config/config.ts";
 import { getTodayET, getCurrentHourET, isFriday, getWeekBoundaries } from "../utils/date.ts";
 import { searchIssuesWithWorklogs, buildAccountIdEmailMap } from "../services/jira.ts";
 import { lookupUserByEmail, sendDirectMessage } from "../services/slack.ts";

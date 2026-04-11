@@ -5,7 +5,7 @@ import type {
   SlackOption,
   SlackOptionGroup,
 } from "../types/index.ts";
-import { CACHE_KEY_ALL_TICKETS } from "../constants.ts";
+import { CACHE_KEY_ALL_TICKETS } from "../constants/constants.ts";
 import { verifySlackSignature } from "../utils/crypto.ts";
 
 const MAX_OPTIONS = 100;
