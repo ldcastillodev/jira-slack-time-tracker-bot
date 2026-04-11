@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import worker from "../../src/index.ts";
-import { createMockEnv, createSignedSlackRequest, createMockSlackPayload } from "../setup.ts";
+import {
+  createMockEnv,
+  createSignedSlackRequest,
+  createMockSlackPayload,
+  createSignedSlackCommandRequest,
+} from "../setup.ts";
 import type { Env } from "../../src/types/index.ts";
 
 describe("Worker router (index.ts)", () => {
@@ -86,6 +91,45 @@ describe("Worker router (index.ts)", () => {
       const request = new Request("http://localhost/health", { method: "POST" });
       const response = await worker.fetch(request, env, mockCtx);
       expect(response.status).toBe(404);
+    });
+  });
+
+  describe("POST /slack/commands — /help command", () => {
+    it("routes /help and returns ephemeral blocks", async () => {
+      const request = await createSignedSlackCommandRequest(signingSecret, {
+        command: "/help",
+        response_url: "https://hooks.slack.com/commands/test/response",
+      });
+
+      const response = await worker.fetch(request, env, mockCtx);
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toContain("application/json");
+
+      const body = (await response.json()) as {
+        response_type: string;
+        blocks: Array<{ type: string }>;
+        text: string;
+      };
+      expect(body.response_type).toBe("ephemeral");
+      expect(Array.isArray(body.blocks)).toBe(true);
+      expect(body.blocks.length).toBeGreaterThan(0);
+      expect(body.blocks.some((b) => b.type === "header")).toBe(true);
+    });
+
+    it("returns 401 for an invalid Slack signature on /slack/commands", async () => {
+      const request = new Request("http://localhost/slack/commands", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "x-slack-signature": "v0=invalidsignature",
+          "x-slack-request-timestamp": String(Math.floor(Date.now() / 1000)),
+        },
+        body: "command=%2Fhelp&user_id=U12345&response_url=https%3A%2F%2Fhooks.slack.com%2F",
+      });
+
+      const response = await worker.fetch(request, env, mockCtx);
+      expect(response.status).toBe(401);
     });
   });
 });

@@ -1,4 +1,11 @@
-import type { Env, JiraUsers, JiraConfig, SlackCommandPayload } from "../types/index.ts";
+import type {
+  Env,
+  JiraUsers,
+  JiraConfig,
+  SlackCommandPayload,
+  CachedTicket,
+  SlackBlock,
+} from "../types/index.ts";
 import { verifySlackSignature } from "../utils/crypto.ts";
 import {
   getWeekBoundaries,
@@ -20,7 +27,9 @@ import {
   buildWeeklyMessage,
   buildWeeklyByComponentMessage,
   buildDailyMessage,
+  buildHelpMessage,
 } from "../builders/message-builder.ts";
+import { CACHE_KEY_ALL_TICKETS, TTL_ALL_TICKETS } from "../constants/constants.ts";
 
 /**
  * Handles Slack slash command webhooks.
@@ -102,6 +111,20 @@ export async function handleSlackCommand(
         text: "⏳ Generando tu resumen diario...",
       });
     }
+
+    case "/refresh-tickets":
+      ctx.waitUntil(processRefreshTicketsCommand(payload.response_url, env));
+      return jsonResponse({
+        response_type: "ephemeral",
+        text: "⏳ Actualizando tickets...",
+      });
+
+    case "/help":
+      return jsonResponse({
+        response_type: "ephemeral",
+        blocks: buildHelpMessage(),
+        text: "📖 Ayuda — Bot de Horas",
+      });
 
     default:
       return jsonResponse({
@@ -334,6 +357,56 @@ async function processDailySummaryCommand(
     await sendCommandError(
       responseUrl,
       "❌ Ocurrió un error al obtener tu resumen diario. Por favor intenta de nuevo más tarde.",
+    );
+  }
+}
+
+async function processRefreshTicketsCommand(responseUrl: string, env: Env): Promise<void> {
+  try {
+    const jiraConfig = JSON.parse(env.JIRA_CONFIG) as JiraConfig;
+
+    console.log("⏱️ Starting tickets refresh...");
+    const issues = await searchIssuesWithWorklogs(env);
+    console.log(`Fetched ${issues.length} issues with worklogs`);
+
+    // Cache all tickets in KV for external_select typeahead
+    const seenKeys = new Set<string>();
+    const cachedTickets: CachedTicket[] = [];
+
+    // Generic tickets first (priority in search results)
+    for (const gt of jiraConfig.jira.genericTickets) {
+      if (!seenKeys.has(gt.key)) {
+        cachedTickets.push({ key: gt.key, summary: gt.summary });
+        seenKeys.add(gt.key);
+      }
+    }
+
+    // All project issues
+    for (const issue of issues) {
+      if (!seenKeys.has(issue.key)) {
+        cachedTickets.push({ key: issue.key, summary: issue.summary });
+        seenKeys.add(issue.key);
+      }
+    }
+
+    await env.CACHE.put(CACHE_KEY_ALL_TICKETS, JSON.stringify(cachedTickets), {
+      expirationTtl: TTL_ALL_TICKETS,
+    });
+    console.log(`Cached ${cachedTickets.length} tickets in KV for typeahead`);
+
+    const blocks: SlackBlock[] = [
+      {
+        type: "section",
+        text: { type: "plain_text", text: "✅ Tickets Actualizados", emoji: true },
+      },
+    ];
+
+    await updateMessageViaResponseUrl(responseUrl, blocks, "✅ Tickets Actualizados", true);
+  } catch (err) {
+    console.error("processRefreshTicketsCommand error:", err);
+    await sendCommandError(
+      responseUrl,
+      "❌ Ocurrió un error al actualizar los tickets. Por favor intenta de nuevo más tarde.",
     );
   }
 }
