@@ -69,7 +69,9 @@ describe("Worker router (index.ts)", () => {
       const fetchSpy = vi
         .fn()
         .mockImplementation(() =>
-          Promise.resolve(new Response(JSON.stringify({ tickets: [] }), { status: 200 })),
+          Promise.resolve(
+            new Response(JSON.stringify({ issues: [], nextPageToken: undefined }), { status: 200 }),
+          ),
         );
       vi.stubGlobal("fetch", fetchSpy);
 

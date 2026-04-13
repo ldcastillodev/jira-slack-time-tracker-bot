@@ -65,7 +65,7 @@ export interface JiraTicket {
 }
 
 export interface JiraSearchResponse {
-  tickets: JiraSearchTicket[];
+  issues: JiraSearchTicket[];
   nextPageToken?: string;
 }
 

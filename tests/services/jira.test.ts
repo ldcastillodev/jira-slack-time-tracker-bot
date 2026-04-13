@@ -26,7 +26,7 @@ describe("jira service", () => {
   describe("searchAllTickets", () => {
     it("fetches tickets and normalizes them", async () => {
       const mockResponse: JiraSearchResponse = {
-        tickets: [
+        issues: [
           {
             key: "TEST-100",
             fields: {
@@ -73,7 +73,7 @@ describe("jira service", () => {
 
     it("handles paginated results", async () => {
       const page1: JiraSearchResponse = {
-        tickets: [
+        issues: [
           {
             key: "TEST-1",
             fields: {
@@ -88,7 +88,7 @@ describe("jira service", () => {
       };
 
       const page2: JiraSearchResponse = {
-        tickets: [
+        issues: [
           {
             key: "TEST-2",
             fields: {
@@ -121,7 +121,7 @@ describe("jira service", () => {
     });
 
     it("sends correct Basic auth header", async () => {
-      fetchSpy.mockResolvedValueOnce(mockJsonResponse({ tickets: [] } as JiraSearchResponse));
+      fetchSpy.mockResolvedValueOnce(mockJsonResponse({ issues: [] } as JiraSearchResponse));
 
       await searchAllTickets(env);
 
@@ -136,7 +136,7 @@ describe("jira service", () => {
   describe("searchTicketsForUser", () => {
     it("fetches tickets and normalizes them for a specific user", async () => {
       const mockResponse: JiraSearchResponse = {
-        tickets: [
+        issues: [
           {
             key: "TEST-200",
             fields: {
@@ -181,7 +181,7 @@ describe("jira service", () => {
     });
 
     it("sends user-specific Basic auth header", async () => {
-      fetchSpy.mockResolvedValueOnce(mockJsonResponse({ tickets: [] } as JiraSearchResponse));
+      fetchSpy.mockResolvedValueOnce(mockJsonResponse({ issues: [] } as JiraSearchResponse));
 
       await searchTicketsForUser(env, "user1@example.com");
 
@@ -195,7 +195,7 @@ describe("jira service", () => {
 
     it("handles paginated results", async () => {
       const page1: JiraSearchResponse = {
-        tickets: [
+        issues: [
           {
             key: "TEST-3",
             fields: {
@@ -210,7 +210,7 @@ describe("jira service", () => {
       };
 
       const page2: JiraSearchResponse = {
-        tickets: [
+        issues: [
           {
             key: "TEST-4",
             fields: {

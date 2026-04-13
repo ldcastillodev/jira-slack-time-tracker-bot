@@ -51,7 +51,7 @@ describe("handleScheduled (cron handler)", () => {
     });
 
     // Mock Jira search (returns empty tickets)
-    fetchSpy.mockResolvedValueOnce(mockJsonResponse({ tickets: [] }));
+    fetchSpy.mockResolvedValueOnce(mockJsonResponse({ issues: [], nextPageToken: undefined }));
 
     // Mock Slack lookupByEmail for user1 → returns user ID
     fetchSpy.mockResolvedValueOnce(mockJsonResponse({ ok: true, user: { id: "U111" } }));

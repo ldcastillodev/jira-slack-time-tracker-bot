@@ -73,7 +73,7 @@ export async function searchAllTickets(env: Env): Promise<JiraTicket[]> {
     }
 
     const data = (await resp.json()) as JiraSearchResponse;
-    allTickets.push(...data.tickets);
+    allTickets.push(...data.issues);
     nextPageToken = data.nextPageToken;
   } while (nextPageToken);
 
@@ -101,7 +101,7 @@ export async function searchTicketsForUser(env: Env, email: string): Promise<Jir
   const boardList = jiraConfig.jira.boards.map((b) => `"${b}"`).join(", ");
   const componentList = jiraConfig.jira.projectComponents.map((c) => `"${c.name}"`).join(", ");
   const users = JSON.parse(env.USERS) as JiraUsers;
-  const jql = `project in (${boardList}) AND component IN (${componentList}) AND worklogDate >= -1w AND worklogAuthor = currentUser()}`;
+  const jql = `project in (${boardList}) AND component IN (${componentList}) AND worklogDate >= -1w AND worklogAuthor = currentUser()`;
   const allTickets: JiraSearchTicket[] = [];
 
   let nextPageToken: string | undefined;
@@ -133,7 +133,7 @@ export async function searchTicketsForUser(env: Env, email: string): Promise<Jir
     }
 
     const data = (await resp.json()) as JiraSearchResponse;
-    allTickets.push(...data.tickets);
+    allTickets.push(...data.issues);
     nextPageToken = data.nextPageToken;
   } while (nextPageToken);
 
