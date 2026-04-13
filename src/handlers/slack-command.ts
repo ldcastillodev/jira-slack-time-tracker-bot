@@ -95,9 +95,9 @@ export async function handleSlackCommand(
         text: "⏳ Generando tu resumen semanal por componente...",
       });
 
-    case "/daily-summary": {
+    case "/submit": {
       const paramText = payload.text.trim().toLowerCase();
-      const validation = validateAndResolveDailySummaryDate(paramText);
+      const validation = validateAndResolveDailySubmissionDate(paramText);
       if ("error" in validation) {
         return jsonResponse({ response_type: "ephemeral", text: validation.error });
       }
@@ -112,7 +112,7 @@ export async function handleSlackCommand(
       );
       return jsonResponse({
         response_type: "ephemeral",
-        text: "⏳ Generando tu resumen diario...",
+        text: "⏳ preparando tu formulario...",
       });
     }
 
@@ -144,7 +144,7 @@ type DailySummaryValidResult = { date: string; label: string };
 type DailySummaryErrorResult = { error: string };
 
 /**
- * Validates and resolves the target date for /daily-summary.
+ * Validates and resolves the target date for /submit.
  * Rules:
  * - No param + weekend → error
  * - No param + weekday → today
@@ -152,7 +152,7 @@ type DailySummaryErrorResult = { error: string };
  * - Future day within current week → error
  * - Past/today day within current week → resolved date + Spanish label
  */
-export function validateAndResolveDailySummaryDate(
+export function validateAndResolveDailySubmissionDate(
   paramText: string,
 ): DailySummaryValidResult | DailySummaryErrorResult {
   const todayET = getTodayET();
@@ -162,7 +162,7 @@ export function validateAndResolveDailySummaryDate(
     if (todayDayOfWeek > 5) {
       return {
         error:
-          "⚠️ Hoy es fin de semana. Usa `/daily-summary lun|mar|mie|jue|vie` para consultar un día de la semana en curso.",
+          "⚠️ Hoy es fin de semana. Usa `/submit lun|mar|mie|jue|vie` para cargar horas en un día de la semana en curso.",
       };
     }
     return { date: todayET, label: formatDateSpanishLong(todayET) };

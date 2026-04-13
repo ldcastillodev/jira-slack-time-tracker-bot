@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   handleSlackCommand,
-  validateAndResolveDailySummaryDate,
+  validateAndResolveDailySubmissionDate,
 } from "../../src/handlers/slack-command.ts";
 import {
   createMockEnv,
@@ -250,13 +250,13 @@ describe("handleSlackCommand", () => {
     expect(sentBody.blocks.length).toBeGreaterThan(0);
   });
 
-  // ─── /daily-summary ───
+  // ─── /submit ───
 
-  it("returns 200 with loading message and schedules async work for /daily-summary (no param, weekday)", async () => {
+  it("returns 200 with loading message and schedules async work for /submit (no param, weekday)", async () => {
     // We need to test with a known weekday. We'll mock getTodayET via the date utility
     // Since we can't control the clock directly, we test with a valid abbreviation
     const request = await createSignedSlackCommandRequest(SIGNING_SECRET, {
-      command: "/daily-summary",
+      command: "/submit",
       text: "lun",
       user_id: USER_SLACK_ID,
       response_url: "https://hooks.slack.com/commands/test/response",
@@ -271,9 +271,9 @@ describe("handleSlackCommand", () => {
     expect(body.response_type).toBe("ephemeral");
   });
 
-  it("returns 200 with error for invalid day abbreviation in /daily-summary", async () => {
+  it("returns 200 with error for invalid day abbreviation in /submit", async () => {
     const request = await createSignedSlackCommandRequest(SIGNING_SECRET, {
-      command: "/daily-summary",
+      command: "/submit",
       text: "sabado",
       user_id: USER_SLACK_ID,
       response_url: "https://hooks.slack.com/commands/test/response",
@@ -309,7 +309,7 @@ describe("handleSlackCommand", () => {
     // We pick a day that is guaranteed to be valid without mocking the clock:
     // We test the success flow using the mock fetch approach.
     const request = await createSignedSlackCommandRequest(SIGNING_SECRET, {
-      command: "/daily-summary",
+      command: "/submit",
       text: "lun",
       user_id: USER_SLACK_ID,
       response_url: responseUrl,
@@ -611,7 +611,7 @@ describe("handleSlackCommand", () => {
 
       expect(allText).toContain("/summary");
       expect(allText).toContain("/summary-components");
-      expect(allText).toContain("/daily-summary");
+      expect(allText).toContain("/submit");
       expect(allText).toContain("/refresh-tickets");
       expect(allText).toContain("/help");
     });
@@ -645,9 +645,9 @@ describe("handleSlackCommand", () => {
 
 // ─── validateAndResolveDailySummaryDate (unit tests, no network) ───
 
-describe("validateAndResolveDailySummaryDate", () => {
+describe("validateAndResolveDailySubmissionDate", () => {
   it("returns error for invalid abbreviation", () => {
-    const result = validateAndResolveDailySummaryDate("sabado");
+    const result = validateAndResolveDailySubmissionDate("sabado");
     expect("error" in result).toBe(true);
     if ("error" in result) {
       expect(result.error).toContain("inválido");
@@ -656,12 +656,12 @@ describe("validateAndResolveDailySummaryDate", () => {
 
   it("returns error for empty string on a weekend (simulated by checking Sunday logic)", () => {
     // We can't control the clock, but we can test the logic for known-bad abbreviations
-    const result = validateAndResolveDailySummaryDate("xyz");
+    const result = validateAndResolveDailySubmissionDate("xyz");
     expect("error" in result).toBe(true);
   });
 
   it("returns date + label for 'lun'", () => {
-    const result = validateAndResolveDailySummaryDate("lun");
+    const result = validateAndResolveDailySubmissionDate("lun");
     // Monday of the current week. If today >= Monday, it's valid; if today < Monday (impossible
     // since today IS Monday or later in the week), we'd get an error.
     // Since tests always run >= Monday, this should be either valid or "future" error on Monday.
@@ -669,7 +669,7 @@ describe("validateAndResolveDailySummaryDate", () => {
   });
 
   it("returns date + label for 'vie'", () => {
-    const result = validateAndResolveDailySummaryDate("vie");
+    const result = validateAndResolveDailySubmissionDate("vie");
     // Friday of current week. If today is before Friday → error (future).
     // If today is Friday or later → valid.
     expect(result).toBeDefined();
@@ -683,7 +683,7 @@ describe("validateAndResolveDailySummaryDate", () => {
     const today = new Date().toISOString().split("T")[0]; // rough today (UTC, good enough for test logic)
 
     for (const abbrev of abbrevs) {
-      const result = validateAndResolveDailySummaryDate(abbrev);
+      const result = validateAndResolveDailySubmissionDate(abbrev);
       if (!("error" in result)) {
         // If resolved, the date should not be in the future
         expect(result.date <= today).toBe(true);

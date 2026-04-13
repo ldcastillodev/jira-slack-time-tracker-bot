@@ -503,7 +503,7 @@ describe("buildHelpMessage", () => {
     const allText = blocks.map((b) => b.text?.text ?? "").join("\n");
     expect(allText).toContain("/summary");
     expect(allText).toContain("/summary-components");
-    expect(allText).toContain("/daily-summary");
+    expect(allText).toContain("/submit");
     expect(allText).toContain("/refresh-tickets");
     expect(allText).toContain("/help");
   });
