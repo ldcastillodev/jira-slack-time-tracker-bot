@@ -1,5 +1,5 @@
 import type {
-  JiraIssue,
+  JiraTicket,
   UserHoursSummary,
   WeeklyBreakdown,
   ComponentBreakdown,
@@ -10,13 +10,13 @@ import type {
  * Aggregates daily hours. Configured users are pre-loaded (to show 0 hours if inactive),
  * and any other user found in worklogs or as assignees will be added dynamically.
  *
- * @param issues  - All fetched Jira issues (with their worklogs)
+ * @param tickets  - All fetched Jira tickets (with their worklogs)
  * @param accountEmailMap - Mapping of Jira accountId → email
  * @param targetDate - yyyy-MM-dd string for the day to aggregate
  * @param userEmails - Optional list of emails to pre-populate with 0 hours
  */
 export function aggregateUserHours(
-  issues: JiraIssue[],
+  tickets: JiraTicket[],
   accountEmailMap: Map<string, string>,
   targetDate: string,
   userEmails?: string[],
@@ -45,19 +45,19 @@ export function aggregateUserHours(
   }
 
   // 2. Add data by iterating over the tickets
-  for (const issue of issues) {
+  for (const ticket of tickets) {
     // A. Track the assignee of the ticket
-    if (issue.assigneeAccountId) {
-      const assigneeEmail = accountEmailMap.get(issue.assigneeAccountId);
+    if (ticket.assigneeAccountId) {
+      const assigneeEmail = accountEmailMap.get(ticket.assigneeAccountId);
       if (assigneeEmail) {
         // Create dynamically if not existed in userEmails
         const summary = getOrCreateSummary(assigneeEmail);
-        summary.ticketKeys.push({ key: issue.key, summary: issue.summary, hours: 0 });
+        summary.ticketKeys.push({ key: ticket.key, summary: ticket.summary, hours: 0 });
       }
     }
 
     // B. Track all users who logged worklogs
-    for (const wl of issue.worklogs) {
+    for (const wl of ticket.worklogs) {
       // Filter: only worklogs on the target date
       if (!wl.started.startsWith(targetDate)) continue;
       // Find the email of the author (removed emailSet restriction)
@@ -69,13 +69,13 @@ export function aggregateUserHours(
       const hours = wl.timeSpentSeconds / 3600;
 
       // Find or create the ticket entry
-      const existing = summary.workedTickets.find((t) => t.key === issue.key);
+      const existing = summary.workedTickets.find((t) => t.key === ticket.key);
       if (existing) {
         existing.hours += hours;
       } else {
         summary.workedTickets.push({
-          key: issue.key,
-          summary: issue.summary,
+          key: ticket.key,
+          summary: ticket.summary,
           hours,
         });
       }
@@ -99,7 +99,7 @@ export function aggregateUserHours(
  * and any other user found in worklogs within the date range will be added dynamically.
  */
 export function aggregateWeeklyHours(
-  issues: JiraIssue[],
+  tickets: JiraTicket[],
   accountEmailMap: Map<string, string>,
   userEmails: string[],
   weekMonday: string,
@@ -133,8 +133,8 @@ export function aggregateWeeklyHours(
   }
 
   // 2. Add data by iterating over the tickets and their worklogs
-  for (const issue of issues) {
-    for (const wl of issue.worklogs) {
+  for (const ticket of tickets) {
+    for (const wl of ticket.worklogs) {
       const wlDate = wl.started.substring(0, 10);
       // Filter: only process worklogs that fall within this week
       if (wlDate < weekMonday || wlDate > weekFriday) continue;
@@ -158,13 +158,13 @@ export function aggregateWeeklyHours(
       if (dayEntry) {
         dayEntry.totalHours += hours;
         // sum hours if the ticket already exists that day, or add it
-        const existing = dayEntry.tickets.find((t) => t.key === issue.key);
+        const existing = dayEntry.tickets.find((t) => t.key === ticket.key);
         if (existing) {
           existing.hours += hours;
         } else {
           dayEntry.tickets.push({
-            key: issue.key,
-            summary: issue.summary,
+            key: ticket.key,
+            summary: ticket.summary,
             hours,
           });
         }
@@ -181,7 +181,7 @@ export function aggregateWeeklyHours(
  * Issues with no components use the label "Sin Componente".
  */
 export function aggregateWeeklyHoursByComponent(
-  issues: JiraIssue[],
+  tickets: JiraTicket[],
   accountEmailMap: Map<string, string>,
   userEmail: string,
   weekMonday: string,
@@ -202,10 +202,10 @@ export function aggregateWeeklyHoursByComponent(
     return componentMap.get(name)!;
   };
 
-  for (const issue of issues) {
-    const componentName = issue.components[0] ?? "Sin Componente";
+  for (const ticket of tickets) {
+    const componentName = ticket.components[0] ?? "Sin Componente";
 
-    for (const wl of issue.worklogs) {
+    for (const wl of ticket.worklogs) {
       const wlDate = wl.started.substring(0, 10);
       if (wlDate < weekMonday || wlDate > weekFriday) continue;
 
@@ -221,11 +221,11 @@ export function aggregateWeeklyHoursByComponent(
       const dayEntry = comp.days.find((d) => d.date === wlDate);
       if (dayEntry) {
         dayEntry.totalHours += hours;
-        const existing = dayEntry.tickets.find((t) => t.key === issue.key);
+        const existing = dayEntry.tickets.find((t) => t.key === ticket.key);
         if (existing) {
           existing.hours += hours;
         } else {
-          dayEntry.tickets.push({ key: issue.key, summary: issue.summary, hours });
+          dayEntry.tickets.push({ key: ticket.key, summary: ticket.summary, hours });
         }
       }
     }

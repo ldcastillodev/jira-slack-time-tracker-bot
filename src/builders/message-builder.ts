@@ -423,7 +423,7 @@ export function buildHelpMessage(): SlackBlock[] {
           "",
           "• `/summary` — Muestra tu resumen semanal de horas (Lun–Vie vs objetivo de 40h).",
           "• `/summary-components` — Muestra tu resumen semanal agrupado por componente de Jira.",
-          "• `/daily-summary [lun|mar|mie|jue|vie]` — Muestra el resumen de un día específico de la semana en curso (por defecto: hoy).",
+          "• `/submit [lun|mar|mie|jue|vie]` — Solicita un registro de horas específico de un día de la semana en curso (por defecto: hoy).",
           "• `/refresh-tickets` — Actualiza el caché de tickets de Jira para la búsqueda por typeahead.",
           "• `/help` — Muestra este mensaje de ayuda.",
         ].join("\n"),

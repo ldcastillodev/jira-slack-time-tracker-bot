@@ -44,8 +44,8 @@ export interface TrackerConfig {
 
 export interface JiraWorklog {
   id: string;
-  issueKey: string;
-  issueSummary: string;
+  ticketKey: string;
+  ticketSummary: string;
   authorAccountId: string;
   authorEmail?: string;
   authorDisplayName: string;
@@ -53,7 +53,7 @@ export interface JiraWorklog {
   timeSpentSeconds: number;
 }
 
-export interface JiraIssue {
+export interface JiraTicket {
   key: string;
   summary: string;
   status: string;
@@ -65,11 +65,11 @@ export interface JiraIssue {
 }
 
 export interface JiraSearchResponse {
-  issues: JiraSearchIssue[];
+  issues: JiraSearchTicket[];
   nextPageToken?: string;
 }
 
-export interface JiraSearchIssue {
+export interface JiraSearchTicket {
   key: string;
   fields: {
     summary: string;

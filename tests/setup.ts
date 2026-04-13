@@ -1,6 +1,6 @@
 import type {
   Env,
-  JiraIssue,
+  JiraTicket,
   JiraWorklog,
   SlackInteractionPayload,
   SlackAction,
@@ -44,9 +44,9 @@ export function createMockEnv(overrides: Partial<Env> = {}): Env {
 }
 
 /**
- * Creates a mock JiraIssue with worklogs.
+ * Creates a mock JiraTicket with worklogs.
  */
-export function createMockJiraIssue(overrides: Partial<JiraIssue> = {}): JiraIssue {
+export function createMockJiraTicket(overrides: Partial<JiraTicket> = {}): JiraTicket {
   return {
     key: "TEST-100",
     summary: "Test Issue",
@@ -66,8 +66,8 @@ export function createMockJiraIssue(overrides: Partial<JiraIssue> = {}): JiraIss
 export function createMockWorklog(overrides: Partial<JiraWorklog> = {}): JiraWorklog {
   return {
     id: "wl-1",
-    issueKey: "TEST-100",
-    issueSummary: "Test Issue",
+    ticketKey: "TEST-100",
+    ticketSummary: "Test Issue",
     authorAccountId: "acc-123",
     authorEmail: "user1@example.com",
     authorDisplayName: "User One",

@@ -2,7 +2,7 @@ import type { Env, JiraConfig, JiraUsers, SlackBlock, CachedTicket } from "../ty
 import { CACHE_KEY_ALL_TICKETS, TTL_ALL_TICKETS } from "../constants/constants.ts";
 import { loadConfig } from "../../config/config.ts";
 import { getTodayET, getCurrentHourET, isFriday, getWeekBoundaries } from "../utils/date.ts";
-import { searchIssuesWithWorklogs, buildAccountIdEmailMap } from "../services/jira.ts";
+import { buildAccountIdEmailMap, searchAllTickets } from "../services/jira.ts";
 import { lookupUserByEmail, sendDirectMessage } from "../services/slack.ts";
 import { aggregateUserHours, aggregateWeeklyHours } from "../services/aggregator.ts";
 import { buildDailyMessage, buildWeeklyMessage } from "../builders/message-builder.ts";
@@ -33,8 +33,8 @@ export async function handleScheduled(env: Env): Promise<void> {
   const friday = isFriday(new Date());
   const { monday, friday: weekFriday } = getWeekBoundaries(new Date());
 
-  const issues = await searchIssuesWithWorklogs(env);
-  console.log(`Fetched ${issues.length} issues with worklogs`);
+  const tickets = await searchAllTickets(env);
+  console.log(`Fetched ${tickets.length} tickets with worklogs`);
 
   // Cache all tickets in KV for external_select typeahead
   const seenKeys = new Set<string>();
@@ -48,11 +48,11 @@ export async function handleScheduled(env: Env): Promise<void> {
     }
   }
 
-  // All project issues
-  for (const issue of issues) {
-    if (!seenKeys.has(issue.key)) {
-      cachedTickets.push({ key: issue.key, summary: issue.summary });
-      seenKeys.add(issue.key);
+  // All project tickets
+  for (const ticket of tickets) {
+    if (!seenKeys.has(ticket.key)) {
+      cachedTickets.push({ key: ticket.key, summary: ticket.summary });
+      seenKeys.add(ticket.key);
     }
   }
 
@@ -62,14 +62,14 @@ export async function handleScheduled(env: Env): Promise<void> {
   console.log(`Cached ${cachedTickets.length} tickets in KV for typeahead`);
 
   // Build accountId → email mapping
-  const accountEmailMap = await buildAccountIdEmailMap(env, issues);
+  const accountEmailMap = await buildAccountIdEmailMap(env, tickets);
 
   // Aggregate daily hours per user
-  const dailySummaries = aggregateUserHours(issues, accountEmailMap, today, userEmails);
+  const dailySummaries = aggregateUserHours(tickets, accountEmailMap, today, userEmails);
 
   // Aggregate weekly hours if Friday
   const weeklySummaries = friday
-    ? aggregateWeeklyHours(issues, accountEmailMap, userEmails, monday, weekFriday)
+    ? aggregateWeeklyHours(tickets, accountEmailMap, userEmails, monday, weekFriday)
     : null;
 
   // Send messages to each user

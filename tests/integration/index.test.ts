@@ -62,11 +62,17 @@ describe("Worker router (index.ts)", () => {
 
   describe("POST /trigger", () => {
     it("returns 200 Triggered", async () => {
-      // Stub fetch to prevent real API calls from cron handler
+      // Stub fetch to prevent real API calls from cron handler.
+      // Use mockImplementation (not mockResolvedValue) so a fresh Response is
+      // returned on every call — Response bodies can only be read once.
       const { vi } = await import("vitest");
       const fetchSpy = vi
         .fn()
-        .mockResolvedValue(new Response(JSON.stringify({ issues: [] }), { status: 200 }));
+        .mockImplementation(() =>
+          Promise.resolve(
+            new Response(JSON.stringify({ issues: [], nextPageToken: undefined }), { status: 200 }),
+          ),
+        );
       vi.stubGlobal("fetch", fetchSpy);
 
       const request = new Request("http://localhost/trigger", { method: "POST" });

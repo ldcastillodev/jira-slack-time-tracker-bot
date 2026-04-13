@@ -9,7 +9,7 @@ import type {
 import { verifySlackSignature } from "../utils/crypto.ts";
 import { getTodayET, isSameCalendarWeek } from "../utils/date.ts";
 import { loadConfig } from "../../config/config.ts";
-import { searchIssuesWithWorklogs, buildAccountIdEmailMap, postWorklog } from "../services/jira.ts";
+import { buildAccountIdEmailMap, postWorklog, searchTicketsForUser } from "../services/jira.ts";
 import {
   sendDirectMessage,
   updateMessageViaResponseUrl,
@@ -228,7 +228,7 @@ async function processSubmitHours(payload: SlackInteractionPayload, env: Env): P
 
     // ── 9. Fetch fresh Jira data (stale-data guard) ──
     const jiraConfig = JSON.parse(env.JIRA_CONFIG) as JiraConfig;
-    const issues = await searchIssuesWithWorklogs(env, userEmail);
+    const issues = await searchTicketsForUser(env, userEmail);
     const accountEmailMap = await buildAccountIdEmailMap(env, issues);
     const summaries = aggregateUserHours(issues, accountEmailMap, targetDate, [userEmail]);
     const currentSummary = summaries.get(userEmail.toLowerCase());
@@ -301,7 +301,7 @@ async function processSubmitHours(payload: SlackInteractionPayload, env: Env): P
     );
 
     // ── 13. Build confirmation ──
-    const updatedIssues = await searchIssuesWithWorklogs(env, userEmail);
+    const updatedIssues = await searchTicketsForUser(env, userEmail);
     const updatedAccountMap = await buildAccountIdEmailMap(env, updatedIssues);
     const updatedSummaries = aggregateUserHours(updatedIssues, updatedAccountMap, targetDate, [
       userEmail,
@@ -409,7 +409,7 @@ async function processAddSlot(payload: SlackInteractionPayload, env: Env): Promi
     }
 
     // Fetch fresh data for the user
-    const issues = await searchIssuesWithWorklogs(env, userEmail);
+    const issues = await searchTicketsForUser(env, userEmail);
     const accountEmailMap = await buildAccountIdEmailMap(env, issues);
     const summaries = aggregateUserHours(issues, accountEmailMap, targetDate, [userEmail]);
     const summary = summaries.get(userEmail.toLowerCase());

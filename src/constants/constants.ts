@@ -9,3 +9,15 @@ export const CACHE_KEY_SLACK_USER_PREFIX = "slack_user:";
 export const TTL_ALL_TICKETS = 7 * 24 * 3_600; // 7 days
 export const TTL_ACCOUNT_MAP = 86_400; // 24 hours
 export const TTL_SLACK_USER = 7 * 24 * 3_600; // 7 days
+
+// ─── Jira Ticket fields ───
+export const JIRA_TICKET_FIELDS = [
+  "summary",
+  "status",
+  "created",
+  "updated",
+  "assignee",
+  "labels",
+  "components",
+  "worklog",
+];

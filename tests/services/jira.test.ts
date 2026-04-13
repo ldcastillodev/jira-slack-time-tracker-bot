@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
-  searchIssuesWithWorklogs,
+  searchAllTickets,
+  searchTicketsForUser,
   buildAccountIdEmailMap,
   postWorklog,
-  fetchIssueSummary,
+  fetchTicketSummary,
 } from "../../src/services/jira.ts";
-import { createMockEnv, createMockJiraIssue, mockJsonResponse } from "../setup.ts";
+import { createMockEnv, createMockJiraTicket, mockJsonResponse } from "../setup.ts";
 import type { Env, JiraSearchResponse } from "../../src/types/index.ts";
 
 describe("jira service", () => {
@@ -22,8 +23,8 @@ describe("jira service", () => {
     vi.restoreAllMocks();
   });
 
-  describe("searchIssuesWithWorklogs", () => {
-    it("fetches issues and normalizes them", async () => {
+  describe("searchAllTickets", () => {
+    it("fetches tickets and normalizes them", async () => {
       const mockResponse: JiraSearchResponse = {
         issues: [
           {
@@ -59,15 +60,15 @@ describe("jira service", () => {
 
       fetchSpy.mockResolvedValueOnce(mockJsonResponse(mockResponse));
 
-      const issues = await searchIssuesWithWorklogs(env);
+      const tickets = await searchAllTickets(env);
 
       expect(fetchSpy).toHaveBeenCalledTimes(1);
-      expect(issues).toHaveLength(1);
-      expect(issues[0].key).toBe("TEST-100");
-      expect(issues[0].summary).toBe("Test Issue");
-      expect(issues[0].assigneeAccountId).toBe("acc-123");
-      expect(issues[0].worklogs).toHaveLength(1);
-      expect(issues[0].worklogs[0].timeSpentSeconds).toBe(3600);
+      expect(tickets).toHaveLength(1);
+      expect(tickets[0].key).toBe("TEST-100");
+      expect(tickets[0].summary).toBe("Test Issue");
+      expect(tickets[0].assigneeAccountId).toBe("acc-123");
+      expect(tickets[0].worklogs).toHaveLength(1);
+      expect(tickets[0].worklogs[0].timeSpentSeconds).toBe(3600);
     });
 
     it("handles paginated results", async () => {
@@ -104,31 +105,141 @@ describe("jira service", () => {
         .mockResolvedValueOnce(mockJsonResponse(page1))
         .mockResolvedValueOnce(mockJsonResponse(page2));
 
-      const issues = await searchIssuesWithWorklogs(env);
+      const tickets = await searchAllTickets(env);
 
       expect(fetchSpy).toHaveBeenCalledTimes(2);
-      expect(issues).toHaveLength(2);
-      expect(issues[0].key).toBe("TEST-1");
-      expect(issues[1].key).toBe("TEST-2");
+      expect(tickets).toHaveLength(2);
+      expect(tickets[0].key).toBe("TEST-1");
+      expect(tickets[1].key).toBe("TEST-2");
     });
 
     it("handles API errors gracefully", async () => {
       fetchSpy.mockResolvedValueOnce(new Response("Internal Server Error", { status: 500 }));
 
-      const issues = await searchIssuesWithWorklogs(env);
-      expect(issues).toHaveLength(0);
+      const tickets = await searchAllTickets(env);
+      expect(tickets).toHaveLength(0);
     });
 
     it("sends correct Basic auth header", async () => {
       fetchSpy.mockResolvedValueOnce(mockJsonResponse({ issues: [] } as JiraSearchResponse));
 
-      await searchIssuesWithWorklogs(env);
+      await searchAllTickets(env);
 
       const callArgs = fetchSpy.mock.calls[0];
       const options = callArgs[1] as RequestInit;
       const headers = options.headers as Record<string, string>;
       const expectedAuth = "Basic " + btoa(`${env.JIRA_USER_EMAIL}:${env.JIRA_API_TOKEN}`);
       expect(headers["Authorization"]).toBe(expectedAuth);
+    });
+  });
+
+  describe("searchTicketsForUser", () => {
+    it("fetches tickets and normalizes them for a specific user", async () => {
+      const mockResponse: JiraSearchResponse = {
+        issues: [
+          {
+            key: "TEST-200",
+            fields: {
+              summary: "User Ticket",
+              status: { name: "In Progress" },
+              assignee: {
+                accountId: "acc-123",
+                emailAddress: "user1@example.com",
+                displayName: "User One",
+              },
+              worklog: {
+                total: 1,
+                maxResults: 20,
+                worklogs: [
+                  {
+                    id: "wl-2",
+                    author: {
+                      accountId: "acc-123",
+                      emailAddress: "user1@example.com",
+                      displayName: "User One",
+                    },
+                    started: "2026-04-08T12:00:00.000+0000",
+                    timeSpentSeconds: 7200,
+                  },
+                ],
+              },
+            },
+          },
+        ],
+      };
+
+      fetchSpy.mockResolvedValueOnce(mockJsonResponse(mockResponse));
+
+      const tickets = await searchTicketsForUser(env, "user1@example.com");
+
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      expect(tickets).toHaveLength(1);
+      expect(tickets[0].key).toBe("TEST-200");
+      expect(tickets[0].summary).toBe("User Ticket");
+      expect(tickets[0].worklogs).toHaveLength(1);
+      expect(tickets[0].worklogs[0].timeSpentSeconds).toBe(7200);
+    });
+
+    it("sends user-specific Basic auth header", async () => {
+      fetchSpy.mockResolvedValueOnce(mockJsonResponse({ issues: [] } as JiraSearchResponse));
+
+      await searchTicketsForUser(env, "user1@example.com");
+
+      const callArgs = fetchSpy.mock.calls[0];
+      const options = callArgs[1] as RequestInit;
+      const headers = options.headers as Record<string, string>;
+      // Should use user1's credentials (from USERS env), not the service account
+      const expectedAuth = "Basic " + btoa("user1@example.com:token1");
+      expect(headers["Authorization"]).toBe(expectedAuth);
+    });
+
+    it("handles paginated results", async () => {
+      const page1: JiraSearchResponse = {
+        issues: [
+          {
+            key: "TEST-3",
+            fields: {
+              summary: "Page 1 Ticket",
+              status: { name: "Done" },
+              assignee: null,
+              worklog: { total: 0, maxResults: 20, worklogs: [] },
+            },
+          },
+        ],
+        nextPageToken: "page2",
+      };
+
+      const page2: JiraSearchResponse = {
+        issues: [
+          {
+            key: "TEST-4",
+            fields: {
+              summary: "Page 2 Ticket",
+              status: { name: "To Do" },
+              assignee: null,
+              worklog: { total: 0, maxResults: 20, worklogs: [] },
+            },
+          },
+        ],
+      };
+
+      fetchSpy
+        .mockResolvedValueOnce(mockJsonResponse(page1))
+        .mockResolvedValueOnce(mockJsonResponse(page2));
+
+      const tickets = await searchTicketsForUser(env, "user1@example.com");
+
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+      expect(tickets).toHaveLength(2);
+      expect(tickets[0].key).toBe("TEST-3");
+      expect(tickets[1].key).toBe("TEST-4");
+    });
+
+    it("handles API errors gracefully", async () => {
+      fetchSpy.mockResolvedValueOnce(new Response("Unauthorized", { status: 401 }));
+
+      const tickets = await searchTicketsForUser(env, "user1@example.com");
+      expect(tickets).toHaveLength(0);
     });
   });
 
@@ -169,18 +280,18 @@ describe("jira service", () => {
     });
   });
 
-  describe("fetchIssueSummary", () => {
-    it("returns the issue summary on success", async () => {
+  describe("fetchTicketSummary", () => {
+    it("returns the ticket summary on success", async () => {
       fetchSpy.mockResolvedValueOnce(mockJsonResponse({ fields: { summary: "My Issue" } }));
 
-      const summary = await fetchIssueSummary(env, "TEST-100");
+      const summary = await fetchTicketSummary(env, "TEST-100");
       expect(summary).toBe("My Issue");
     });
 
-    it("returns the issue key as fallback on error", async () => {
+    it("returns the ticket key as fallback on error", async () => {
       fetchSpy.mockResolvedValueOnce(new Response("Not Found", { status: 404 }));
 
-      const summary = await fetchIssueSummary(env, "TEST-999");
+      const summary = await fetchTicketSummary(env, "TEST-999");
       expect(summary).toBe("TEST-999");
     });
   });
@@ -198,14 +309,14 @@ describe("jira service", () => {
       const envWithKV = createMockEnv({ CACHE: mockKV as unknown as KVNamespace });
 
       const issues = [
-        createMockJiraIssue({
+        createMockJiraTicket({
           assigneeAccountId: "acc-123",
           assigneeEmail: "user1@example.com",
           worklogs: [
             {
               id: "wl-1",
-              issueKey: "TEST-100",
-              issueSummary: "Test",
+              ticketKey: "TEST-100",
+              ticketSummary: "Test",
               authorAccountId: "acc-456",
               authorEmail: "user2@example.com",
               authorDisplayName: "User Two",
@@ -236,7 +347,7 @@ describe("jira service", () => {
       const envWithKV = createMockEnv({ CACHE: mockKV as unknown as KVNamespace });
 
       const issues = [
-        createMockJiraIssue({
+        createMockJiraTicket({
           assigneeAccountId: "acc-123",
           assigneeEmail: "user1@example.com",
           worklogs: [],
