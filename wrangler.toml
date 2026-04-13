@@ -12,10 +12,7 @@ preview_id = "813980971652421185362f30b12d3dc1"
 # Cron triggers: dual UTC times to cover EDT (UTC-4) and EST (UTC-5) DST transitions
 # The handler checks if it's actually 4PM ET before executing.
 [triggers]
-crons = [
-  "0 20 * * 1-5", "0 21 * * 1-5", # Jira Time Tracker (4 PM ET)
-  "0 15 * * *",   "0 16 * * *"    # Refresh Tickets Cache (11 AM ET)
-]
+crons = ["0 20 * * 1-5", "0 15 * * *"]
 
 [observability]
 [observability.logs]
