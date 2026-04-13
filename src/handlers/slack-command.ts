@@ -3,7 +3,6 @@ import type {
   JiraUsers,
   JiraConfig,
   SlackCommandPayload,
-  CachedTicket,
   SlackBlock,
 } from "../types/index.ts";
 import { verifySlackSignature } from "../utils/crypto.ts";
@@ -17,9 +16,9 @@ import {
 } from "../utils/date.ts";
 import { loadConfig } from "../../config/config.ts";
 import {
-  searchAllTickets,
   buildAccountIdEmailMap,
   searchTicketsForUser,
+  refreshJiraTicketsCache,
 } from "../services/jira.ts";
 import { updateMessageViaResponseUrl, resolveEmailFromSlackId } from "../services/slack.ts";
 import {
@@ -33,7 +32,6 @@ import {
   buildDailyMessage,
   buildHelpMessage,
 } from "../builders/message-builder.ts";
-import { CACHE_KEY_ALL_TICKETS, TTL_ALL_TICKETS } from "../constants/constants.ts";
 
 /**
  * Handles Slack slash command webhooks.
@@ -367,36 +365,7 @@ async function processDailySummaryCommand(
 
 async function processRefreshTicketsCommand(responseUrl: string, env: Env): Promise<void> {
   try {
-    const jiraConfig = JSON.parse(env.JIRA_CONFIG) as JiraConfig;
-
-    console.log("⏱️ Starting tickets refresh...");
-    const issues = await searchAllTickets(env);
-    console.log(`Fetched ${issues.length} issues with worklogs`);
-
-    // Cache all tickets in KV for external_select typeahead
-    const seenKeys = new Set<string>();
-    const cachedTickets: CachedTicket[] = [];
-
-    // Generic tickets first (priority in search results)
-    for (const gt of jiraConfig.jira.genericTickets) {
-      if (!seenKeys.has(gt.key)) {
-        cachedTickets.push({ key: gt.key, summary: gt.summary });
-        seenKeys.add(gt.key);
-      }
-    }
-
-    // All project issues
-    for (const issue of issues) {
-      if (!seenKeys.has(issue.key)) {
-        cachedTickets.push({ key: issue.key, summary: issue.summary });
-        seenKeys.add(issue.key);
-      }
-    }
-
-    await env.CACHE.put(CACHE_KEY_ALL_TICKETS, JSON.stringify(cachedTickets), {
-      expirationTtl: TTL_ALL_TICKETS,
-    });
-    console.log(`Cached ${cachedTickets.length} tickets in KV for typeahead`);
+    await refreshJiraTicketsCache(env);
 
     const blocks: SlackBlock[] = [
       {

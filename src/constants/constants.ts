@@ -21,3 +21,5 @@ export const JIRA_TICKET_FIELDS = [
   "components",
   "worklog",
 ];
+
+export const GENERIC_JIRA_TICKET_FIELDS = ["key", "summary"];

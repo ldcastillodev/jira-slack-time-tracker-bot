@@ -8,11 +8,16 @@ import type {
   JiraWorklogResponse,
   JiraConfig,
   JiraUsers,
+  GenericTicket,
+  CachedTicket,
 } from "../types/index.ts";
 import {
   CACHE_KEY_ACCOUNT_MAP,
+  CACHE_KEY_ALL_TICKETS,
+  GENERIC_JIRA_TICKET_FIELDS,
   JIRA_TICKET_FIELDS,
   TTL_ACCOUNT_MAP,
+  TTL_ALL_TICKETS,
 } from "../constants/constants.ts";
 import { getWeekBoundaries } from "../utils/date.ts";
 
@@ -35,15 +40,15 @@ function baseHeaders(env: Env, email?: string, token?: string): Record<string, s
 // ─── Search tickets with Worklogs ───
 
 /**
- * Searches Jira for tickets that have worklogs in the given date range.
+ * Searches Jira for tickets that have worklogs in 1 week date range.
  * Uses the v3 POST search endpoint with token-based pagination.
  */
-export async function searchAllTickets(env: Env): Promise<JiraTicket[]> {
+export async function searchAllTicketsWithWorklogs(env: Env): Promise<JiraTicket[]> {
   const jiraConfig = JSON.parse(env.JIRA_CONFIG) as JiraConfig;
   const boardList = jiraConfig.jira.boards.map((b) => `"${b}"`).join(", ");
   const componentList = jiraConfig.jira.projectComponents.map((c) => `"${c.name}"`).join(", ");
   // fetch tickets that are in project components, to ensure we get all relevant worklogs for the day.
-  const jql = `project in (${boardList}) AND component IN (${componentList})`;
+  const jql = `project in (${boardList}) AND component IN (${componentList}) AND worklogDate >= -1w`;
 
   const allTickets: JiraSearchTicket[] = [];
   let nextPageToken: string | undefined;
@@ -90,6 +95,63 @@ export async function searchAllTickets(env: Env): Promise<JiraTicket[]> {
       assigneeDisplayName: raw.fields.assignee?.displayName ?? null,
       components: raw.fields.components?.map((c) => c.name) ?? [],
       worklogs,
+    });
+  }
+
+  return results;
+}
+
+// ─── Search All tickets ───
+
+/**
+ * Searches Jira for all tickets in the project.
+ * Uses the v3 POST search endpoint with token-based pagination.
+ */
+export async function searchAllTickets(env: Env): Promise<GenericTicket[]> {
+  const jiraConfig = JSON.parse(env.JIRA_CONFIG) as JiraConfig;
+  const boardList = jiraConfig.jira.boards.map((b) => `"${b}"`).join(", ");
+  const componentList = jiraConfig.jira.projectComponents.map((c) => `"${c.name}"`).join(", ");
+  // fetch tickets that are in project components, to ensure we get all relevant worklogs for the day.
+  const jql = `project in (${boardList}) AND component IN (${componentList})`;
+
+  const allTickets: JiraSearchTicket[] = [];
+  let nextPageToken: string | undefined;
+
+  do {
+    const body: Record<string, unknown> = {
+      jql,
+      maxResults: 100,
+      fields: GENERIC_JIRA_TICKET_FIELDS,
+    };
+    if (nextPageToken) {
+      body.nextPageToken = nextPageToken;
+    }
+
+    const url = `${env.JIRA_BASE_URL}/rest/api/3/search/jql`;
+    const searchHeaders = baseHeaders(env);
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: searchHeaders,
+      body: JSON.stringify(body),
+    });
+
+    if (!resp.ok) {
+      const text = await resp.text();
+      console.error(`Jira search failed (${resp.status}): ${text}`);
+      break;
+    }
+
+    const data = (await resp.json()) as JiraSearchResponse;
+    allTickets.push(...data.issues);
+    nextPageToken = data.nextPageToken;
+  } while (nextPageToken);
+
+  // Convert raw tickets into our normalized Generic Ticket type,
+  const results: GenericTicket[] = [];
+  for (const raw of allTickets) {
+    results.push({
+      key: raw.key,
+      summary: raw.fields.summary,
     });
   }
 
@@ -269,6 +331,38 @@ export async function fetchTicketSummary(env: Env, ticketKey: string): Promise<s
 
   const data = (await resp.json()) as { fields: { summary: string } };
   return data.fields.summary;
+}
+
+export async function refreshJiraTicketsCache(env: Env): Promise<void> {
+  const jiraConfig = JSON.parse(env.JIRA_CONFIG) as JiraConfig;
+  console.log("⏱️ Starting tickets refresh...");
+  const issues = await searchAllTickets(env);
+  console.log(`Fetched ${issues.length} issues with worklogs`);
+
+  // Cache all tickets in KV for external_select typeahead
+  const seenKeys = new Set<string>();
+  const cachedTickets: CachedTicket[] = [];
+
+  // Generic tickets first (priority in search results)
+  for (const gt of jiraConfig.jira.genericTickets) {
+    if (!seenKeys.has(gt.key)) {
+      cachedTickets.push({ key: gt.key, summary: gt.summary });
+      seenKeys.add(gt.key);
+    }
+  }
+
+  // All project issues
+  for (const issue of issues) {
+    if (!seenKeys.has(issue.key)) {
+      cachedTickets.push({ key: issue.key, summary: issue.summary });
+      seenKeys.add(issue.key);
+    }
+  }
+
+  await env.CACHE.put(CACHE_KEY_ALL_TICKETS, JSON.stringify(cachedTickets), {
+    expirationTtl: TTL_ALL_TICKETS,
+  });
+  console.log(`Cached ${cachedTickets.length} tickets in KV for typeahead`);
 }
 
 // ─── Build accountId → email mapping from search results ───
