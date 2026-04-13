@@ -1,8 +1,11 @@
-import type { Env, JiraConfig, JiraUsers, SlackBlock, CachedTicket } from "../types/index.ts";
-import { CACHE_KEY_ALL_TICKETS, TTL_ALL_TICKETS } from "../constants/constants.ts";
+import type { Env, JiraConfig, JiraUsers, SlackBlock } from "../types/index.ts";
 import { loadConfig } from "../../config/config.ts";
 import { getTodayET, getCurrentHourET, isFriday, getWeekBoundaries } from "../utils/date.ts";
-import { buildAccountIdEmailMap, searchAllTickets } from "../services/jira.ts";
+import {
+  buildAccountIdEmailMap,
+  refreshJiraTicketsCache,
+  searchAllTicketsWithWorklogs,
+} from "../services/jira.ts";
 import { lookupUserByEmail, sendDirectMessage } from "../services/slack.ts";
 import { aggregateUserHours, aggregateWeeklyHours } from "../services/aggregator.ts";
 import { buildDailyMessage, buildWeeklyMessage } from "../builders/message-builder.ts";
@@ -11,7 +14,7 @@ import { buildDailyMessage, buildWeeklyMessage } from "../builders/message-build
  * Cron handler: runs on dual UTC triggers (20:00 and 21:00) Mon-Fri.
  * Only executes if the current ET hour matches the configured cronHourET (16 = 4PM).
  */
-export async function handleScheduled(env: Env): Promise<void> {
+export async function handleScheduledSummary(env: Env): Promise<void> {
   const config = loadConfig();
   const currentHourET = getCurrentHourET();
   const users = JSON.parse(env.USERS) as JiraUsers;
@@ -33,33 +36,8 @@ export async function handleScheduled(env: Env): Promise<void> {
   const friday = isFriday(new Date());
   const { monday, friday: weekFriday } = getWeekBoundaries(new Date());
 
-  const tickets = await searchAllTickets(env);
+  const tickets = await searchAllTicketsWithWorklogs(env);
   console.log(`Fetched ${tickets.length} tickets with worklogs`);
-
-  // Cache all tickets in KV for external_select typeahead
-  const seenKeys = new Set<string>();
-  const cachedTickets: CachedTicket[] = [];
-
-  // Generic tickets first (priority in search results)
-  for (const gt of jiraConfig.jira.genericTickets) {
-    if (!seenKeys.has(gt.key)) {
-      cachedTickets.push({ key: gt.key, summary: gt.summary });
-      seenKeys.add(gt.key);
-    }
-  }
-
-  // All project tickets
-  for (const ticket of tickets) {
-    if (!seenKeys.has(ticket.key)) {
-      cachedTickets.push({ key: ticket.key, summary: ticket.summary });
-      seenKeys.add(ticket.key);
-    }
-  }
-
-  await env.CACHE.put(CACHE_KEY_ALL_TICKETS, JSON.stringify(cachedTickets), {
-    expirationTtl: TTL_ALL_TICKETS,
-  });
-  console.log(`Cached ${cachedTickets.length} tickets in KV for typeahead`);
 
   // Build accountId → email mapping
   const accountEmailMap = await buildAccountIdEmailMap(env, tickets);
@@ -113,4 +91,15 @@ export async function handleScheduled(env: Env): Promise<void> {
   }
 
   console.log(`Done: sent ${sentCount}/${userEmails.length} notifications`);
+}
+
+/**
+ * Cron handler: runs once at day at 11 a.m. ET.
+ */
+export async function handleScheduledTicketsRefresh(env: Env): Promise<void> {
+  try {
+    await refreshJiraTicketsCache(env);
+  } catch (error) {
+    console.error("Failed to refresh Jira tickets cache:", error);
+  }
 }

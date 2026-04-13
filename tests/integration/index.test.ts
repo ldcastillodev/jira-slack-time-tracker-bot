@@ -138,4 +138,82 @@ describe("Worker router (index.ts)", () => {
       expect(response.status).toBe(401);
     });
   });
+
+  describe("scheduled() cron routing", () => {
+    const makeScheduledCtx = () =>
+      ({
+        waitUntil: (p: Promise<unknown>) => void p,
+        passThroughOnException: () => {},
+      }) as unknown as ExecutionContext;
+
+    it("routes '0 20 * * 1-5' to handleScheduledSummary", async () => {
+      const { vi } = await import("vitest");
+      const fetchSpy = vi
+        .fn()
+        .mockImplementation(() =>
+          Promise.resolve(new Response(JSON.stringify({ issues: [] }), { status: 200 })),
+        );
+      vi.stubGlobal("fetch", fetchSpy);
+
+      const controller = { cron: "0 20 * * 1-5" } as ScheduledController;
+      await expect(worker.scheduled(controller, env, makeScheduledCtx())).resolves.toBeUndefined();
+
+      vi.restoreAllMocks();
+    });
+
+    it("routes '0 21 * * 1-5' to handleScheduledSummary", async () => {
+      const { vi } = await import("vitest");
+      const fetchSpy = vi
+        .fn()
+        .mockImplementation(() =>
+          Promise.resolve(new Response(JSON.stringify({ issues: [] }), { status: 200 })),
+        );
+      vi.stubGlobal("fetch", fetchSpy);
+
+      const controller = { cron: "0 21 * * 1-5" } as ScheduledController;
+      await expect(worker.scheduled(controller, env, makeScheduledCtx())).resolves.toBeUndefined();
+
+      vi.restoreAllMocks();
+    });
+
+    it("routes '0 15 * * *' to handleScheduledTicketsRefresh", async () => {
+      const { vi } = await import("vitest");
+      const fetchSpy = vi
+        .fn()
+        .mockImplementation(() =>
+          Promise.resolve(new Response(JSON.stringify({ issues: [] }), { status: 200 })),
+        );
+      vi.stubGlobal("fetch", fetchSpy);
+
+      const controller = { cron: "0 15 * * *" } as ScheduledController;
+      await expect(worker.scheduled(controller, env, makeScheduledCtx())).resolves.toBeUndefined();
+
+      // Should have fetched from Jira (the tickets refresh flow)
+      expect(fetchSpy).toHaveBeenCalled();
+
+      vi.restoreAllMocks();
+    });
+
+    it("routes '0 16 * * *' to handleScheduledTicketsRefresh", async () => {
+      const { vi } = await import("vitest");
+      const fetchSpy = vi
+        .fn()
+        .mockImplementation(() =>
+          Promise.resolve(new Response(JSON.stringify({ issues: [] }), { status: 200 })),
+        );
+      vi.stubGlobal("fetch", fetchSpy);
+
+      const controller = { cron: "0 16 * * *" } as ScheduledController;
+      await expect(worker.scheduled(controller, env, makeScheduledCtx())).resolves.toBeUndefined();
+
+      expect(fetchSpy).toHaveBeenCalled();
+
+      vi.restoreAllMocks();
+    });
+
+    it("handles unknown cron expression without throwing", async () => {
+      const controller = { cron: "0 0 * * *" } as ScheduledController;
+      await expect(worker.scheduled(controller, env, makeScheduledCtx())).resolves.toBeUndefined();
+    });
+  });
 });

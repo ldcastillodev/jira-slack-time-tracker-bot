@@ -1,5 +1,5 @@
 import type { Env } from "./types/index.ts";
-import { handleScheduled } from "./handlers/cron.ts";
+import { handleScheduledSummary, handleScheduledTicketsRefresh } from "./handlers/cron.ts";
 import { handleSlackInteraction } from "./handlers/slack-interaction.ts";
 import { handleSlackOptions } from "./handlers/slack-options.ts";
 import { handleSlackCommand } from "./handlers/slack-command.ts";
@@ -33,7 +33,7 @@ export default {
 
     // Manual cron trigger (for testing)
     if (url.pathname === "/trigger" && request.method === "POST") {
-      ctx.waitUntil(handleScheduled(env));
+      ctx.waitUntil(handleScheduledSummary(env));
       return new Response("Triggered", { status: 200 });
     }
 
@@ -44,10 +44,25 @@ export default {
    * Cron trigger handler — fires on the configured schedule.
    */
   async scheduled(
-    _controller: ScheduledController,
+    controller: ScheduledController,
     env: Env,
     _ctx: ExecutionContext,
   ): Promise<void> {
-    await handleScheduled(env);
+    switch (controller.cron) {
+      // Casos para el reporte de horas (4 PM ET)
+      case "0 20 * * 1-5":
+      case "0 21 * * 1-5":
+        await handleScheduledSummary(env);
+        break;
+
+      // Casos para el refresh de tickets (11 AM ET)
+      case "0 15 * * *":
+      case "0 16 * * *":
+        await handleScheduledTicketsRefresh(env);
+        break;
+
+      default:
+        console.warn(`Cron no reconocido: ${controller.cron}`);
+    }
   },
 };

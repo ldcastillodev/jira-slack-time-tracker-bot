@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
+  searchAllTicketsWithWorklogs,
   searchAllTickets,
+  refreshJiraTicketsCache,
   searchTicketsForUser,
   buildAccountIdEmailMap,
   postWorklog,
@@ -8,6 +10,7 @@ import {
 } from "../../src/services/jira.ts";
 import { createMockEnv, createMockJiraTicket, mockJsonResponse } from "../setup.ts";
 import type { Env, JiraSearchResponse } from "../../src/types/index.ts";
+import { CACHE_KEY_ALL_TICKETS } from "../../src/constants/constants.ts";
 
 describe("jira service", () => {
   let env: Env;
@@ -23,7 +26,7 @@ describe("jira service", () => {
     vi.restoreAllMocks();
   });
 
-  describe("searchAllTickets", () => {
+  describe("searchAllTicketsWithWorklogs", () => {
     it("fetches tickets and normalizes them", async () => {
       const mockResponse: JiraSearchResponse = {
         issues: [
@@ -60,7 +63,7 @@ describe("jira service", () => {
 
       fetchSpy.mockResolvedValueOnce(mockJsonResponse(mockResponse));
 
-      const tickets = await searchAllTickets(env);
+      const tickets = await searchAllTicketsWithWorklogs(env);
 
       expect(fetchSpy).toHaveBeenCalledTimes(1);
       expect(tickets).toHaveLength(1);
@@ -105,7 +108,7 @@ describe("jira service", () => {
         .mockResolvedValueOnce(mockJsonResponse(page1))
         .mockResolvedValueOnce(mockJsonResponse(page2));
 
-      const tickets = await searchAllTickets(env);
+      const tickets = await searchAllTicketsWithWorklogs(env);
 
       expect(fetchSpy).toHaveBeenCalledTimes(2);
       expect(tickets).toHaveLength(2);
@@ -116,14 +119,14 @@ describe("jira service", () => {
     it("handles API errors gracefully", async () => {
       fetchSpy.mockResolvedValueOnce(new Response("Internal Server Error", { status: 500 }));
 
-      const tickets = await searchAllTickets(env);
+      const tickets = await searchAllTicketsWithWorklogs(env);
       expect(tickets).toHaveLength(0);
     });
 
     it("sends correct Basic auth header", async () => {
       fetchSpy.mockResolvedValueOnce(mockJsonResponse({ issues: [] } as JiraSearchResponse));
 
-      await searchAllTickets(env);
+      await searchAllTicketsWithWorklogs(env);
 
       const callArgs = fetchSpy.mock.calls[0];
       const options = callArgs[1] as RequestInit;
@@ -358,6 +361,213 @@ describe("jira service", () => {
 
       expect(map.get("acc-old")).toBe("old@example.com");
       expect(map.get("acc-123")).toBe("user1@example.com");
+    });
+  });
+
+  describe("searchAllTickets", () => {
+    it("fetches all tickets and returns only key + summary", async () => {
+      const mockResponse: JiraSearchResponse = {
+        issues: [
+          {
+            key: "TEST-50",
+            fields: {
+              summary: "All Tickets Issue",
+              status: { name: "In Progress" },
+              assignee: null,
+              worklog: { total: 0, maxResults: 20, worklogs: [] },
+            },
+          },
+        ],
+      };
+
+      fetchSpy.mockResolvedValueOnce(mockJsonResponse(mockResponse));
+
+      const tickets = await searchAllTickets(env);
+
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      expect(tickets).toHaveLength(1);
+      expect(tickets[0].key).toBe("TEST-50");
+      expect(tickets[0].summary).toBe("All Tickets Issue");
+      // GenericTicket should only have key and summary
+      expect(Object.keys(tickets[0])).toEqual(["key", "summary"]);
+    });
+
+    it("handles paginated results", async () => {
+      const page1: JiraSearchResponse = {
+        issues: [
+          {
+            key: "TEST-10",
+            fields: {
+              summary: "Page 1",
+              status: { name: "Done" },
+              assignee: null,
+              worklog: { total: 0, maxResults: 20, worklogs: [] },
+            },
+          },
+        ],
+        nextPageToken: "page2",
+      };
+
+      const page2: JiraSearchResponse = {
+        issues: [
+          {
+            key: "TEST-11",
+            fields: {
+              summary: "Page 2",
+              status: { name: "To Do" },
+              assignee: null,
+              worklog: { total: 0, maxResults: 20, worklogs: [] },
+            },
+          },
+        ],
+      };
+
+      fetchSpy
+        .mockResolvedValueOnce(mockJsonResponse(page1))
+        .mockResolvedValueOnce(mockJsonResponse(page2));
+
+      const tickets = await searchAllTickets(env);
+
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+      expect(tickets).toHaveLength(2);
+      expect(tickets[0].key).toBe("TEST-10");
+      expect(tickets[1].key).toBe("TEST-11");
+    });
+
+    it("handles API errors gracefully", async () => {
+      fetchSpy.mockResolvedValueOnce(new Response("Internal Server Error", { status: 500 }));
+
+      const tickets = await searchAllTickets(env);
+      expect(tickets).toHaveLength(0);
+    });
+
+    it("uses service account auth (no worklog filter in JQL)", async () => {
+      fetchSpy.mockResolvedValueOnce(mockJsonResponse({ issues: [] } as JiraSearchResponse));
+
+      await searchAllTickets(env);
+
+      const callArgs = fetchSpy.mock.calls[0];
+      const options = callArgs[1] as RequestInit;
+      const headers = options.headers as Record<string, string>;
+      const expectedAuth = "Basic " + btoa(`${env.JIRA_USER_EMAIL}:${env.JIRA_API_TOKEN}`);
+      expect(headers["Authorization"]).toBe(expectedAuth);
+
+      // JQL should NOT include worklogDate filter
+      const body = JSON.parse(options.body as string) as { jql: string; fields: string[] };
+      expect(body.jql).not.toContain("worklogDate");
+    });
+
+    it("requests only key and summary fields", async () => {
+      fetchSpy.mockResolvedValueOnce(mockJsonResponse({ issues: [] } as JiraSearchResponse));
+
+      await searchAllTickets(env);
+
+      const callArgs = fetchSpy.mock.calls[0];
+      const options = callArgs[1] as RequestInit;
+      const body = JSON.parse(options.body as string) as { jql: string; fields: string[] };
+      expect(body.fields).toContain("key");
+      expect(body.fields).toContain("summary");
+    });
+  });
+
+  describe("refreshJiraTicketsCache", () => {
+    it("fetches all tickets, merges with genericTickets, and caches in KV", async () => {
+      const mockKV = {
+        get: vi.fn().mockResolvedValue(null),
+        put: vi.fn().mockResolvedValue(undefined),
+        delete: vi.fn(),
+        list: vi.fn(),
+        getWithMetadata: vi.fn(),
+      };
+      const envWithKV = createMockEnv({ CACHE: mockKV as unknown as KVNamespace });
+
+      const mockResponse: JiraSearchResponse = {
+        issues: [
+          {
+            key: "TEST-99",
+            fields: {
+              summary: "Project Issue",
+              status: { name: "In Progress" },
+              assignee: null,
+              worklog: { total: 0, maxResults: 20, worklogs: [] },
+            },
+          },
+        ],
+      };
+      fetchSpy.mockResolvedValueOnce(mockJsonResponse(mockResponse));
+
+      await refreshJiraTicketsCache(envWithKV);
+
+      expect(mockKV.put).toHaveBeenCalledWith(
+        CACHE_KEY_ALL_TICKETS,
+        expect.any(String),
+        expect.objectContaining({ expirationTtl: expect.any(Number) }),
+      );
+
+      // Verify the cached payload contains both generic and project tickets
+      const putCall = mockKV.put.mock.calls[0];
+      const cachedTickets = JSON.parse(putCall[1] as string) as Array<{
+        key: string;
+        summary: string;
+      }>;
+      const keys = cachedTickets.map((t) => t.key);
+      // Generic ticket from config (TEST-1) should come first
+      expect(keys).toContain("TEST-1");
+      expect(keys).toContain("TEST-99");
+      expect(keys.indexOf("TEST-1")).toBeLessThan(keys.indexOf("TEST-99"));
+    });
+
+    it("deduplicates tickets (generic ticket key that also appears in project issues)", async () => {
+      const mockKV = {
+        get: vi.fn().mockResolvedValue(null),
+        put: vi.fn().mockResolvedValue(undefined),
+        delete: vi.fn(),
+        list: vi.fn(),
+        getWithMetadata: vi.fn(),
+      };
+      const envWithKV = createMockEnv({ CACHE: mockKV as unknown as KVNamespace });
+
+      // The env has genericTickets: [{ key: "TEST-1", summary: "Generic Ticket 1" }]
+      // Return TEST-1 also as a project issue — it should only appear once in cache
+      const mockResponse: JiraSearchResponse = {
+        issues: [
+          {
+            key: "TEST-1",
+            fields: {
+              summary: "Generic Ticket 1",
+              status: { name: "In Progress" },
+              assignee: null,
+              worklog: { total: 0, maxResults: 20, worklogs: [] },
+            },
+          },
+        ],
+      };
+      fetchSpy.mockResolvedValueOnce(mockJsonResponse(mockResponse));
+
+      await refreshJiraTicketsCache(envWithKV);
+
+      const putCall = mockKV.put.mock.calls[0];
+      const cachedTickets = JSON.parse(putCall[1] as string) as Array<{ key: string }>;
+      const keys = cachedTickets.map((t) => t.key);
+      // TEST-1 should appear exactly once
+      expect(keys.filter((k) => k === "TEST-1")).toHaveLength(1);
+    });
+
+    it("handles fetch errors without throwing", async () => {
+      const mockKV = {
+        get: vi.fn().mockResolvedValue(null),
+        put: vi.fn().mockResolvedValue(undefined),
+        delete: vi.fn(),
+        list: vi.fn(),
+        getWithMetadata: vi.fn(),
+      };
+      const envWithKV = createMockEnv({ CACHE: mockKV as unknown as KVNamespace });
+
+      fetchSpy.mockResolvedValueOnce(new Response("Server Error", { status: 500 }));
+
+      // Should still cache (with only generic tickets)
+      await expect(refreshJiraTicketsCache(envWithKV)).resolves.toBeUndefined();
+      expect(mockKV.put).toHaveBeenCalled();
     });
   });
 });
