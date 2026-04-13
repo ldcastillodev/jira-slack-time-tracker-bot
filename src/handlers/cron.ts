@@ -1,6 +1,12 @@
 import type { Env, JiraConfig, JiraUsers, SlackBlock } from "../types/index.ts";
 import { loadConfig } from "../../config/config.ts";
-import { getTodayET, getCurrentHourET, isFriday, getWeekBoundaries } from "../utils/date.ts";
+import {
+  getTodayET,
+  getCurrentHourET,
+  isFriday,
+  getWeekBoundaries,
+  formatDateSpanishLong,
+} from "../utils/date.ts";
 import {
   buildAccountIdEmailMap,
   refreshJiraTicketsCache,
@@ -33,6 +39,7 @@ export async function handleScheduledSummary(env: Env): Promise<void> {
   console.log("⏱️ Starting daily hours check...");
 
   const today = getTodayET();
+  const dateLabel = formatDateSpanishLong(today);
   const friday = isFriday(new Date());
   const { monday, friday: weekFriday } = getWeekBoundaries(new Date());
 
@@ -72,11 +79,31 @@ export async function handleScheduledSummary(env: Env): Promise<void> {
     if (friday && weeklySummaries) {
       const weeklySummary = weeklySummaries.get(lowerEmail);
       if (weeklySummary) {
-        blocks.push(...buildDailyMessage(dailySummary, config, today, jiraConfig));
+        blocks.push(
+          ...buildDailyMessage(
+            dailySummary,
+            config,
+            today,
+            jiraConfig,
+            undefined,
+            undefined,
+            dateLabel,
+          ),
+        );
         blocks.push(...buildWeeklyMessage(weeklySummary, config));
       }
     } else {
-      blocks.push(...buildDailyMessage(dailySummary, config, today, jiraConfig));
+      blocks.push(
+        ...buildDailyMessage(
+          dailySummary,
+          config,
+          today,
+          jiraConfig,
+          undefined,
+          undefined,
+          dateLabel,
+        ),
+      );
     }
 
     const fallbackText = `Reporte de horas: ${dailySummary.totalHours.toFixed(1)}h / ${config.tracking.dailyTarget}h`;
