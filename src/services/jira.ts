@@ -43,7 +43,7 @@ export async function searchAllTickets(env: Env): Promise<JiraTicket[]> {
   const boardList = jiraConfig.jira.boards.map((b) => `"${b}"`).join(", ");
   const componentList = jiraConfig.jira.projectComponents.map((c) => `"${c.name}"`).join(", ");
   // fetch tickets that are in project components, to ensure we get all relevant worklogs for the day.
-  const jql = `project in (${boardList}) AND component IN (${componentList})}`;
+  const jql = `project in (${boardList}) AND component IN (${componentList})`;
 
   const allTickets: JiraSearchTicket[] = [];
   let nextPageToken: string | undefined;
