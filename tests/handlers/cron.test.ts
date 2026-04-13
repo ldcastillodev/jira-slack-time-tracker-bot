@@ -73,6 +73,56 @@ describe("handleScheduledSummary (cron handler)", () => {
 
     vi.restoreAllMocks();
   });
+
+  it("passes the formatted dateLabel to buildDailyMessage", async () => {
+    const mockKV = {
+      get: vi.fn().mockResolvedValue(null),
+      put: vi.fn().mockResolvedValue(undefined),
+      delete: vi.fn(),
+      list: vi.fn(),
+      getWithMetadata: vi.fn(),
+    };
+    env = createMockEnv({ CACHE: mockKV as unknown as KVNamespace });
+
+    const dateModule = await import("../../src/utils/date.ts");
+    vi.spyOn(dateModule, "getCurrentHourET").mockReturnValue(16);
+    vi.spyOn(dateModule, "getTodayET").mockReturnValue("2026-04-08");
+    vi.spyOn(dateModule, "isFriday").mockReturnValue(false);
+    vi.spyOn(dateModule, "getWeekBoundaries").mockReturnValue({
+      monday: "2026-04-06",
+      friday: "2026-04-10",
+    });
+
+    const messageBuilder = await import("../../src/builders/message-builder.ts");
+    const buildDailyMsgSpy = vi.spyOn(messageBuilder, "buildDailyMessage");
+
+    // Mock Jira search (returns empty tickets)
+    fetchSpy.mockResolvedValueOnce(mockJsonResponse({ issues: [], nextPageToken: undefined }));
+
+    // Mock Slack lookupByEmail for user1
+    fetchSpy.mockResolvedValueOnce(mockJsonResponse({ ok: true, user: { id: "U111" } }));
+    // Mock Slack postMessage for user1
+    fetchSpy.mockResolvedValueOnce(mockJsonResponse({ ok: true }));
+    // Mock Slack lookupByEmail for user2
+    fetchSpy.mockResolvedValueOnce(mockJsonResponse({ ok: true, user: { id: "U222" } }));
+    // Mock Slack postMessage for user2
+    fetchSpy.mockResolvedValueOnce(mockJsonResponse({ ok: true }));
+
+    await handleScheduledSummary(env);
+
+    // buildDailyMessage should have been called with dateLabel (7th argument)
+    expect(buildDailyMsgSpy).toHaveBeenCalled();
+    for (const call of buildDailyMsgSpy.mock.calls) {
+      const dateLabel = call[6]; // 7th argument (0-indexed: 6)
+      expect(dateLabel).toBeDefined();
+      expect(typeof dateLabel).toBe("string");
+      // Should be the Spanish long format for 2026-04-08 (miércoles 8 de abril de 2026)
+      expect(dateLabel).toContain("abril");
+      expect(dateLabel).toContain("2026");
+    }
+
+    vi.restoreAllMocks();
+  });
 });
 
 describe("handleScheduledTicketsRefresh (cron handler)", () => {
