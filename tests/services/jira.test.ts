@@ -1,25 +1,51 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import {
-  searchAllTicketsWithWorklogs,
-  searchAllTickets,
-  refreshJiraTicketsCache,
-  searchTicketsForUser,
-  buildAccountIdEmailMap,
-  postWorklog,
-  fetchTicketSummary,
-} from "../../src/services/jira.ts";
+import { JiraService } from "../../src/jira/jira.service.ts";
+import { RequestContextService } from "../../src/context/request-context.service.ts";
+import { ConfigService } from "../../src/config/config.service.ts";
+import { runInContext } from "../../src/context/async-local-storage.ts";
 import { createMockEnv, createMockJiraTicket, mockJsonResponse } from "../setup.ts";
-import type { Env, JiraSearchResponse } from "../../src/types/index.ts";
-import { CACHE_KEY_ALL_TICKETS } from "../../src/constants/constants.ts";
+import type { Env, JiraSearchResponse, JiraTicket } from "../../src/common/types/index.ts";
+import { CACHE_KEY_ALL_TICKETS } from "../../src/common/constants/constants.ts";
 
 describe("jira service", () => {
   let env: Env;
   let fetchSpy: ReturnType<typeof vi.fn>;
+  let jiraService: JiraService;
+
+  const mockCtx = {
+    waitUntil: vi.fn(),
+    passThroughOnException: vi.fn(),
+  } as unknown as ExecutionContext;
+
+  // Shims: preserve old call signatures, delegate to class methods via ALS
+  const searchAllTicketsWithWorklogs = (e: Env) =>
+    runInContext(e, mockCtx, () => jiraService.searchAllTicketsWithWorklogs());
+  const searchAllTickets = (e: Env) =>
+    runInContext(e, mockCtx, () => jiraService.searchAllTickets());
+  const searchTicketsForUser = (e: Env, email: string) =>
+    runInContext(e, mockCtx, () => jiraService.searchTicketsForUser(email));
+  const postWorklog = (
+    e: Env,
+    ticketKey: string,
+    dateStr: string,
+    seconds: number,
+    email: string,
+  ) => runInContext(e, mockCtx, () => jiraService.postWorklog(ticketKey, dateStr, seconds, email));
+  const fetchTicketSummary = (e: Env, ticketKey: string) =>
+    runInContext(e, mockCtx, () => jiraService.fetchTicketSummary(ticketKey));
+  const buildAccountIdEmailMap = (e: Env, issues: JiraTicket[]) =>
+    runInContext(e, mockCtx, () => jiraService.buildAccountIdEmailMap(issues));
+  const refreshJiraTicketsCache = (e: Env) =>
+    runInContext(e, mockCtx, () => jiraService.refreshJiraTicketsCache());
 
   beforeEach(() => {
     env = createMockEnv();
     fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
+
+    const rcs = new RequestContextService();
+    const cs = new ConfigService(rcs);
+    jiraService = new JiraService(rcs, cs);
   });
 
   afterEach(() => {

@@ -4,7 +4,7 @@ import type {
   JiraWorklog,
   SlackInteractionPayload,
   SlackAction,
-} from "../src/types/index.ts";
+} from "../src/common/types/index.ts";
 
 const ENCODER = new TextEncoder();
 

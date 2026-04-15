@@ -1,19 +1,41 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import {
-  handleSlackCommand,
-  validateAndResolveDailySubmissionDate,
-} from "../../src/handlers/slack-command.ts";
+import { SlackCommandHandler } from "../../src/slack/handlers/slack-command.handler.ts";
+import { RequestContextService } from "../../src/context/request-context.service.ts";
+import { ConfigService } from "../../src/config/config.service.ts";
+import { JiraService } from "../../src/jira/jira.service.ts";
+import { SlackService } from "../../src/slack/slack.service.ts";
+import { AggregatorService } from "../../src/aggregator/aggregator.service.ts";
+import { MessageBuilderService } from "../../src/builders/message-builder.service.ts";
+import { runInContext } from "../../src/context/async-local-storage.ts";
 import {
   createMockEnv,
   createSignedSlackCommandRequest,
   generateSlackSignature,
   mockJsonResponse,
 } from "../setup.ts";
-import type { Env } from "../../src/types/index.ts";
+import type { Env } from "../../src/common/types/index.ts";
 
 const SIGNING_SECRET = "test-signing-secret";
 const USER_SLACK_ID = "U12345";
 const USER_EMAIL = "user1@example.com";
+
+let slackCommandHandler: SlackCommandHandler;
+
+function setupHandler() {
+  const rcs = new RequestContextService();
+  const cs = new ConfigService(rcs);
+  const js = new JiraService(rcs, cs);
+  const ss = new SlackService(rcs);
+  const as = new AggregatorService();
+  const mbs = new MessageBuilderService();
+  slackCommandHandler = new SlackCommandHandler(rcs, cs, js, ss, as, mbs);
+}
+
+// Shims: preserve old call signatures, delegate to class methods via ALS
+const handleSlackCommand = (request: Request, e: Env, ctx: ExecutionContext) =>
+  runInContext(e, ctx, () => slackCommandHandler.handleSlackCommand(request));
+const validateAndResolveDailySubmissionDate = (param: string) =>
+  slackCommandHandler.validateAndResolveDailySubmissionDate(param);
 
 const mockCtx = {
   waitUntil: vi.fn((p: Promise<unknown>) => {
@@ -29,6 +51,7 @@ describe("handleSlackCommand", () => {
   beforeEach(() => {
     fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
+    setupHandler();
     // KV resolves the Slack ID → email mapping
     const mockKV = {
       get: vi.fn().mockImplementation(async (key: string) => {
@@ -646,6 +669,10 @@ describe("handleSlackCommand", () => {
 // ─── validateAndResolveDailySummaryDate (unit tests, no network) ───
 
 describe("validateAndResolveDailySubmissionDate", () => {
+  beforeEach(() => {
+    setupHandler();
+  });
+
   it("returns error for invalid abbreviation", () => {
     const result = validateAndResolveDailySubmissionDate("sabado");
     expect("error" in result).toBe(true);

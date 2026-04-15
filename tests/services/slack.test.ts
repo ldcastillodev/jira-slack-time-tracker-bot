@@ -1,20 +1,40 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import {
-  lookupUserByEmail,
-  resolveEmailFromSlackId,
-  sendDirectMessage,
-  updateMessageViaResponseUrl,
-} from "../../src/services/slack.ts";
+import { SlackService } from "../../src/slack/slack.service.ts";
+import { RequestContextService } from "../../src/context/request-context.service.ts";
+import { runInContext } from "../../src/context/async-local-storage.ts";
 import { createMockEnv, mockJsonResponse } from "../setup.ts";
-import type { Env } from "../../src/types/index.ts";
+import type { Env, SlackBlock } from "../../src/common/types/index.ts";
 
 describe("slack service", () => {
   let env: Env;
   let fetchSpy: ReturnType<typeof vi.fn>;
+  let slackService: SlackService;
+
+  const mockCtx = {
+    waitUntil: vi.fn(),
+    passThroughOnException: vi.fn(),
+  } as unknown as ExecutionContext;
+
+  // Shims: preserve old call signatures, delegate to class methods via ALS
+  const lookupUserByEmail = (e: Env, email: string) =>
+    runInContext(e, mockCtx, () => slackService.lookupUserByEmail(email));
+  const resolveEmailFromSlackId = (e: Env, slackUserId: string, emails: string[]) =>
+    runInContext(e, mockCtx, () => slackService.resolveEmailFromSlackId(slackUserId, emails));
+  const sendDirectMessage = (e: Env, slackUserId: string, blocks: SlackBlock[], text: string) =>
+    runInContext(e, mockCtx, () => slackService.sendDirectMessage(slackUserId, blocks, text));
+  const updateMessageViaResponseUrl = (
+    url: string,
+    blocks: SlackBlock[],
+    text: string,
+    replace: boolean,
+  ) => slackService.updateMessageViaResponseUrl(url, blocks, text, replace);
 
   beforeEach(() => {
     fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
+
+    const rcs = new RequestContextService();
+    slackService = new SlackService(rcs);
   });
 
   afterEach(() => {

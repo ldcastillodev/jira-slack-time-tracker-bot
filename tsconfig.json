@@ -8,6 +8,8 @@
     "skipLibCheck": true,
     "noEmit": true,
     "allowImportingTsExtensions": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
     "types": ["@cloudflare/workers-types", "@cloudflare/vitest-pool-workers"],
     "resolveJsonModule": true,
     "isolatedModules": true,

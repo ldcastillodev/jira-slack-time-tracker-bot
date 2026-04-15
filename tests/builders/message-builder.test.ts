@@ -1,18 +1,14 @@
 import { describe, it, expect } from "vitest";
-import {
-  buildDailyMessage,
-  buildWeeklyMessage,
-  buildConfirmationMessage,
-  buildWeeklyByComponentMessage,
-  buildHelpMessage,
-} from "../../src/builders/message-builder.ts";
+import { MessageBuilderService } from "../../src/builders/message-builder.service.ts";
 import type {
   UserHoursSummary,
   WeeklyBreakdown,
   WeeklyByComponentBreakdown,
   TrackerConfig,
   JiraConfig,
-} from "../../src/types/index.ts";
+} from "../../src/common/types/index.ts";
+
+const builder = new MessageBuilderService();
 
 const config: TrackerConfig = {
   tracking: {
@@ -41,7 +37,7 @@ describe("buildDailyMessage", () => {
       ticketKeys: [],
     };
 
-    const blocks = buildDailyMessage(summary, config, "2026-04-08", jiraConfig);
+    const blocks = builder.buildDailyMessage(summary, config, "2026-04-08", jiraConfig);
 
     // Should have header, greeting, divider, breakdown, then interactive section
     expect(blocks.length).toBeGreaterThan(5);
@@ -65,7 +61,7 @@ describe("buildDailyMessage", () => {
       ticketKeys: [],
     };
 
-    const blocks = buildDailyMessage(summary, config, "2026-04-08", jiraConfig);
+    const blocks = builder.buildDailyMessage(summary, config, "2026-04-08", jiraConfig);
 
     const actionsBlock = blocks.find((b) => b.type === "actions");
     expect(actionsBlock).toBeUndefined();
@@ -80,7 +76,7 @@ describe("buildDailyMessage", () => {
       ticketKeys: [],
     };
 
-    const blocks = buildDailyMessage(summary, config, "2026-04-08", jiraConfig);
+    const blocks = builder.buildDailyMessage(summary, config, "2026-04-08", jiraConfig);
 
     const actionsBlock = blocks.find((b) => b.type === "actions");
     expect(actionsBlock).toBeUndefined();
@@ -95,7 +91,7 @@ describe("buildDailyMessage", () => {
       ticketKeys: [],
     };
 
-    const blocks = buildDailyMessage(summary, config, "2026-04-08", jiraConfig, 5);
+    const blocks = builder.buildDailyMessage(summary, config, "2026-04-08", jiraConfig, 5);
 
     // Count ticket_block_N sections
     const ticketBlocks = blocks.filter((b) => b.block_id && b.block_id.startsWith("ticket_block_"));
@@ -124,7 +120,7 @@ describe("buildDailyMessage", () => {
       },
     ];
 
-    const blocks = buildDailyMessage(
+    const blocks = builder.buildDailyMessage(
       summary,
       config,
       "2026-04-08",
@@ -148,7 +144,7 @@ describe("buildDailyMessage", () => {
       ticketKeys: [],
     };
 
-    const blocks = buildDailyMessage(summary, config, "2026-04-08", jiraConfig);
+    const blocks = builder.buildDailyMessage(summary, config, "2026-04-08", jiraConfig);
 
     const greetingBlock = blocks.find(
       (b) => b.text?.type === "mrkdwn" && b.text.text.includes("Hola"),
@@ -169,7 +165,7 @@ describe("buildDailyMessage", () => {
       ticketKeys: [],
     };
 
-    const blocks = buildDailyMessage(summary, config, "2026-04-08", jiraConfig);
+    const blocks = builder.buildDailyMessage(summary, config, "2026-04-08", jiraConfig);
 
     const breakdownBlock = blocks.find((b) => b.text?.text?.includes("TEST-100"));
     expect(breakdownBlock).toBeDefined();
@@ -192,7 +188,7 @@ describe("buildWeeklyMessage", () => {
       ],
     };
 
-    const blocks = buildWeeklyMessage(weekly, config);
+    const blocks = builder.buildWeeklyMessage(weekly, config);
 
     expect(blocks.length).toBeGreaterThan(0);
 
@@ -220,7 +216,7 @@ describe("buildWeeklyMessage", () => {
       ],
     };
 
-    const blocks = buildWeeklyMessage(weekly, config);
+    const blocks = builder.buildWeeklyMessage(weekly, config);
 
     const statusBlock = blocks.find((b) => b.text?.text?.includes("✅"));
     expect(statusBlock).toBeDefined();
@@ -244,7 +240,7 @@ describe("buildConfirmationMessage", () => {
       ticketKeys: [],
     };
 
-    const blocks = buildConfirmationMessage(entries, updatedSummary, 8);
+    const blocks = builder.buildConfirmationMessage(entries, updatedSummary, 8);
 
     expect(blocks.length).toBeGreaterThan(0);
 
@@ -264,7 +260,7 @@ describe("buildConfirmationMessage", () => {
       ticketKeys: [],
     };
 
-    const blocks = buildConfirmationMessage(entries, updatedSummary, 8);
+    const blocks = builder.buildConfirmationMessage(entries, updatedSummary, 8);
 
     const remainingBlock = blocks.find((b) => b.text?.text?.includes("3.0h"));
     expect(remainingBlock).toBeDefined();
@@ -280,7 +276,7 @@ describe("buildConfirmationMessage", () => {
       ticketKeys: [],
     };
 
-    const blocks = buildConfirmationMessage(entries, updatedSummary, 8);
+    const blocks = builder.buildConfirmationMessage(entries, updatedSummary, 8);
 
     const remainingBlock = blocks.find((b) => b.text?.text?.includes("Aún te faltan"));
     expect(remainingBlock).toBeUndefined();
@@ -297,7 +293,7 @@ describe("buildDailyMessage with dateLabel", () => {
       ticketKeys: [],
     };
 
-    const blocks = buildDailyMessage(
+    const blocks = builder.buildDailyMessage(
       summary,
       config,
       "2026-04-09",
@@ -324,7 +320,7 @@ describe("buildDailyMessage with dateLabel", () => {
       ticketKeys: [],
     };
 
-    const blocks = buildDailyMessage(summary, config, "2026-04-09", jiraConfig);
+    const blocks = builder.buildDailyMessage(summary, config, "2026-04-09", jiraConfig);
 
     const greetingBlock = blocks.find(
       (b) => b.text?.type === "mrkdwn" && b.text.text.includes("Hola"),
@@ -345,7 +341,7 @@ describe("buildWeeklyByComponentMessage", () => {
       components: [],
     };
 
-    const blocks = buildWeeklyByComponentMessage(breakdown, config, weekMonday, weekFriday);
+    const blocks = builder.buildWeeklyByComponentMessage(breakdown, config, weekMonday, weekFriday);
 
     const header = blocks.find((b) => b.type === "header");
     expect(header).toBeDefined();
@@ -364,7 +360,7 @@ describe("buildWeeklyByComponentMessage", () => {
       components: [],
     };
 
-    const blocks = buildWeeklyByComponentMessage(breakdown, config, weekMonday, weekFriday);
+    const blocks = builder.buildWeeklyByComponentMessage(breakdown, config, weekMonday, weekFriday);
 
     const emptyBlock = blocks.find((b) => b.text?.text?.includes("No hay horas"));
     expect(emptyBlock).toBeDefined();
@@ -408,7 +404,7 @@ describe("buildWeeklyByComponentMessage", () => {
       ],
     };
 
-    const blocks = buildWeeklyByComponentMessage(breakdown, config, weekMonday, weekFriday);
+    const blocks = builder.buildWeeklyByComponentMessage(breakdown, config, weekMonday, weekFriday);
 
     const backendBlock = blocks.find((b) => b.text?.text?.includes("Backend"));
     expect(backendBlock).toBeDefined();
@@ -442,7 +438,7 @@ describe("buildWeeklyByComponentMessage", () => {
       ],
     };
 
-    const blocks = buildWeeklyByComponentMessage(breakdown, config, weekMonday, weekFriday);
+    const blocks = builder.buildWeeklyByComponentMessage(breakdown, config, weekMonday, weekFriday);
 
     const dayBlock = blocks.find((b) => b.text?.text?.includes("PROJ-123"));
     expect(dayBlock).toBeDefined();
@@ -472,7 +468,7 @@ describe("buildWeeklyByComponentMessage", () => {
       ],
     };
 
-    const blocks = buildWeeklyByComponentMessage(breakdown, config, weekMonday, weekFriday);
+    const blocks = builder.buildWeeklyByComponentMessage(breakdown, config, weekMonday, weekFriday);
 
     // Only one day has hours, so only that day should appear in the breakdown
     const dayBlock = blocks.find((b) => b.text?.text?.includes("2026-04-07"));
@@ -482,24 +478,24 @@ describe("buildWeeklyByComponentMessage", () => {
 
 describe("buildHelpMessage", () => {
   it("returns a non-empty SlackBlock array", () => {
-    const blocks = buildHelpMessage();
+    const blocks = builder.buildHelpMessage();
     expect(Array.isArray(blocks)).toBe(true);
     expect(blocks.length).toBeGreaterThan(0);
   });
 
   it("first block is a header containing 'Ayuda'", () => {
-    const blocks = buildHelpMessage();
+    const blocks = builder.buildHelpMessage();
     expect(blocks[0].type).toBe("header");
     expect(blocks[0].text?.text).toContain("Ayuda");
   });
 
   it("contains a divider block", () => {
-    const blocks = buildHelpMessage();
+    const blocks = builder.buildHelpMessage();
     expect(blocks.some((b) => b.type === "divider")).toBe(true);
   });
 
   it("lists all 5 command names", () => {
-    const blocks = buildHelpMessage();
+    const blocks = builder.buildHelpMessage();
     const allText = blocks.map((b) => b.text?.text ?? "").join("\n");
     expect(allText).toContain("/summary");
     expect(allText).toContain("/summary-components");
@@ -509,7 +505,7 @@ describe("buildHelpMessage", () => {
   });
 
   it("command listing block uses mrkdwn type", () => {
-    const blocks = buildHelpMessage();
+    const blocks = builder.buildHelpMessage();
     const commandBlock = blocks.find(
       (b) => b.type === "section" && b.text?.type === "mrkdwn" && b.text.text.includes("/summary"),
     );
@@ -518,6 +514,8 @@ describe("buildHelpMessage", () => {
   });
 
   it("is deterministic — identical output on each call", () => {
-    expect(JSON.stringify(buildHelpMessage())).toBe(JSON.stringify(buildHelpMessage()));
+    expect(JSON.stringify(builder.buildHelpMessage())).toBe(
+      JSON.stringify(builder.buildHelpMessage()),
+    );
   });
 });

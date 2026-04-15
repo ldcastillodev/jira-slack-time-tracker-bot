@@ -1,8 +1,38 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { handleScheduledSummary, handleScheduledTicketsRefresh } from "../../src/handlers/cron.ts";
+import { CronHandler } from "../../src/cron/cron.handler.ts";
+import { RequestContextService } from "../../src/context/request-context.service.ts";
+import { ConfigService } from "../../src/config/config.service.ts";
+import { JiraService } from "../../src/jira/jira.service.ts";
+import { SlackService } from "../../src/slack/slack.service.ts";
+import { AggregatorService } from "../../src/aggregator/aggregator.service.ts";
+import { MessageBuilderService } from "../../src/builders/message-builder.service.ts";
+import { runInContext } from "../../src/context/async-local-storage.ts";
 import { createMockEnv, mockJsonResponse } from "../setup.ts";
-import type { Env } from "../../src/types/index.ts";
-import { CACHE_KEY_ALL_TICKETS } from "../../src/constants/constants.ts";
+import type { Env } from "../../src/common/types/index.ts";
+import { CACHE_KEY_ALL_TICKETS } from "../../src/common/constants/constants.ts";
+
+let cronHandler: CronHandler;
+
+const mockCtx = {
+  waitUntil: vi.fn(),
+  passThroughOnException: vi.fn(),
+} as unknown as ExecutionContext;
+
+function setupCronHandler() {
+  const rcs = new RequestContextService();
+  const cs = new ConfigService(rcs);
+  const js = new JiraService(rcs, cs);
+  const ss = new SlackService(rcs);
+  const as = new AggregatorService();
+  const mbs = new MessageBuilderService();
+  cronHandler = new CronHandler(cs, js, ss, as, mbs);
+}
+
+// Shims: preserve old call signatures
+const handleScheduledSummary = (e: Env) =>
+  runInContext(e, mockCtx, () => cronHandler.handleScheduledSummary());
+const handleScheduledTicketsRefresh = (e: Env) =>
+  runInContext(e, mockCtx, () => cronHandler.handleScheduledTicketsRefresh());
 
 describe("handleScheduledSummary (cron handler)", () => {
   let env: Env;
@@ -11,6 +41,7 @@ describe("handleScheduledSummary (cron handler)", () => {
   beforeEach(() => {
     fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
+    setupCronHandler();
   });
 
   afterEach(() => {
@@ -21,7 +52,7 @@ describe("handleScheduledSummary (cron handler)", () => {
     env = createMockEnv();
 
     // Mock getCurrentHourET to return a non-matching hour
-    const dateModule = await import("../../src/utils/date.ts");
+    const dateModule = await import("../../src/common/utils/date.ts");
     vi.spyOn(dateModule, "getCurrentHourET").mockReturnValue(10); // not 16
 
     await handleScheduledSummary(env);
@@ -42,7 +73,7 @@ describe("handleScheduledSummary (cron handler)", () => {
     };
     env = createMockEnv({ CACHE: mockKV as unknown as KVNamespace });
 
-    const dateModule = await import("../../src/utils/date.ts");
+    const dateModule = await import("../../src/common/utils/date.ts");
     vi.spyOn(dateModule, "getCurrentHourET").mockReturnValue(16);
     vi.spyOn(dateModule, "getTodayET").mockReturnValue("2026-04-08");
     vi.spyOn(dateModule, "isFriday").mockReturnValue(false);
@@ -84,7 +115,7 @@ describe("handleScheduledSummary (cron handler)", () => {
     };
     env = createMockEnv({ CACHE: mockKV as unknown as KVNamespace });
 
-    const dateModule = await import("../../src/utils/date.ts");
+    const dateModule = await import("../../src/common/utils/date.ts");
     vi.spyOn(dateModule, "getCurrentHourET").mockReturnValue(16);
     vi.spyOn(dateModule, "getTodayET").mockReturnValue("2026-04-08");
     vi.spyOn(dateModule, "isFriday").mockReturnValue(false);
@@ -93,8 +124,7 @@ describe("handleScheduledSummary (cron handler)", () => {
       friday: "2026-04-10",
     });
 
-    const messageBuilder = await import("../../src/builders/message-builder.ts");
-    const buildDailyMsgSpy = vi.spyOn(messageBuilder, "buildDailyMessage");
+    const buildDailyMsgSpy = vi.spyOn(MessageBuilderService.prototype, "buildDailyMessage");
 
     // Mock Jira search (returns empty tickets)
     fetchSpy.mockResolvedValueOnce(mockJsonResponse({ issues: [], nextPageToken: undefined }));
@@ -132,6 +162,7 @@ describe("handleScheduledTicketsRefresh (cron handler)", () => {
   beforeEach(() => {
     fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
+    setupCronHandler();
   });
 
   afterEach(() => {

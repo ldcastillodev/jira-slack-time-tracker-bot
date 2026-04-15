@@ -12,7 +12,7 @@ import {
   getDateForDayOfCurrentWeek,
   getDayOfWeekET,
   formatDateSpanishLong,
-} from "../../src/utils/date.ts";
+} from "../../src/common/utils/date.ts";
 
 describe("date utils", () => {
   describe("formatDateForJira", () => {

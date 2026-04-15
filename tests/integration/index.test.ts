@@ -6,7 +6,7 @@ import {
   createMockSlackPayload,
   createSignedSlackCommandRequest,
 } from "../setup.ts";
-import type { Env } from "../../src/types/index.ts";
+import type { Env } from "../../src/common/types/index.ts";
 
 describe("Worker router (index.ts)", () => {
   let env: Env;

@@ -19,6 +19,7 @@ export default tseslint.config(
       "@typescript-eslint/no-explicit-any": "warn",
       "@typescript-eslint/no-non-null-assertion": "off",
       "no-constant-condition": "off",
+      "@typescript-eslint/no-extraneous-class": "off",
     },
   },
   {
@@ -30,6 +31,7 @@ export default tseslint.config(
       ],
       "@typescript-eslint/no-explicit-any": "warn",
       "@typescript-eslint/no-non-null-assertion": "off",
+      "@typescript-eslint/no-extraneous-class": "off",
     },
   },
 );
