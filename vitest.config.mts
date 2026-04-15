@@ -1,5 +1,6 @@
 import { defineConfig } from "vitest/config";
 import { cloudflareTest, cloudflarePool } from "@cloudflare/vitest-pool-workers";
+import path from "node:path";
 
 const workersOptions = {
   wrangler: {
@@ -30,6 +31,13 @@ const workersOptions = {
 
 export default defineConfig({
   plugins: [cloudflareTest(workersOptions)],
+  resolve: {
+    alias: {
+      "@nestjs/common": path.resolve(__dirname, "tests/__mocks__/nestjs-common.ts"),
+      "@nestjs/core": path.resolve(__dirname, "tests/__mocks__/nestjs-core.ts"),
+      "reflect-metadata": path.resolve(__dirname, "tests/__mocks__/reflect-metadata.ts"),
+    },
+  },
   test: {
     include: ["tests/**/*.test.ts"],
     pool: cloudflarePool(workersOptions),

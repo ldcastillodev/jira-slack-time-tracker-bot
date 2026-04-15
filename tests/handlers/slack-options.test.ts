@@ -1,7 +1,27 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { handleSlackOptions } from "../../src/handlers/slack-options.ts";
+import { SlackOptionsHandler } from "../../src/slack/handlers/slack-options.handler.ts";
+import { RequestContextService } from "../../src/context/request-context.service.ts";
+import { ConfigService } from "../../src/config/config.service.ts";
+import { runInContext } from "../../src/context/async-local-storage.ts";
 import { createMockEnv, createSignedSlackRequest } from "../setup.ts";
-import type { Env, CachedTicket } from "../../src/types/index.ts";
+import type { Env, CachedTicket } from "../../src/common/types/index.ts";
+
+let optionsHandler: SlackOptionsHandler;
+
+const dummyCtx = {
+  waitUntil: vi.fn(),
+  passThroughOnException: vi.fn(),
+} as unknown as ExecutionContext;
+
+function setupHandler() {
+  const rcs = new RequestContextService();
+  const cs = new ConfigService(rcs);
+  optionsHandler = new SlackOptionsHandler(rcs, cs);
+}
+
+// Shim: preserve old call signature (request, env)
+const handleSlackOptions = (request: Request, e: Env) =>
+  runInContext(e, dummyCtx, () => optionsHandler.handleSlackOptions(request));
 
 describe("handleSlackOptions", () => {
   let env: Env;
@@ -9,6 +29,7 @@ describe("handleSlackOptions", () => {
 
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn());
+    setupHandler();
   });
 
   afterEach(() => {

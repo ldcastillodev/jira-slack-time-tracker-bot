@@ -20,44 +20,30 @@ Every weekday at **4:00 PM ET**, the bot:
 
 ## Architecture
 
+The bot uses a **NestJS Standalone Application** (`NestFactory.createApplicationContext`) for dependency injection, deployed on **Cloudflare Workers**. There is no HTTP server — Cloudflare's native `fetch` and `scheduled` handlers dispatch to NestJS-managed services.
+
+**AsyncLocalStorage** carries per-request `env` and `ctx` bindings so that `@Injectable()` singletons can access Cloudflare KV, secrets, and `ExecutionContext` without passing them through every function call.
+
 ```
 ┌──────────────────────────────────────────────────────────┐
 │                   Cloudflare Worker                       │
 │                                                          │
-│  ┌──────────┐    ┌──────────────────────────────────┐    │
-│  │  Cron    │───▶│ Jira API: fetch worklogs         │    │
-│  │ 4PM ET   │    │ Aggregate per user                │    │
-│  │ Mon-Fri  │    │ Cache all tickets in KV            │    │
-│  │          │    │ Build Block Kit (dynamic slots)    │    │
-│  │          │───▶│ Slack API: send DM                │    │
-│  └──────────┘    └──────────────────────────────────┘    │
+│   src/index.ts (entry)                                   │
+│     ├── bootstrap() → NestFactory.createApplicationContext│
+│     ├── fetch()  → runInContext(env, ctx, ...)            │
+│     └── scheduled() → runInContext(env, ctx, ...)         │
 │                                                          │
-│  ┌──────────┐    ┌──────────────────────────────────┐    │
-│  │  POST    │───▶│ Verify Slack signature            │    │
-│  │ /slack/  │    │ submit_hours: validate + post     │    │
-│  │ interact │    │ add_slot: add slot + preserve      │    │
-│  │          │───▶│ Re-fetch Jira (stale guard)       │    │
-│  └──────────┘    └──────────────────────────────────┘    │
+│   NestJS Modules:                                        │
+│     ContextModule  (@Global — RequestContextService)     │
+│     ConfigModule   (ConfigService + config loader)       │
+│     JiraModule     (JiraService)                         │
+│     SlackModule    (SlackService + 3 handlers)           │
+│     AggregatorModule (AggregatorService)                 │
+│     BuilderModule  (MessageBuilderService)               │
+│     CronModule     (CronHandler)                         │
 │                                                          │
-│  ┌──────────┐    ┌──────────────────────────────────┐    │
-│  │  POST    │───▶│ Verify Slack signature            │    │
-│  │ /slack/  │    │ Read ticket cache from KV         │    │
-│  │ options  │    │ Filter by query (typeahead)       │    │
-│  │          │───▶│ Return option_groups (max 100)    │    │
-│  └──────────┘    └──────────────────────────────────┘    │
-│                                                          │
-│  ┌──────────┐    ┌──────────────────────────────────┐    │
-│  │  POST    │───▶│ Verify Slack signature            │    │
-│  │ /slack/  │    │ Dispatch by command               │    │
-│  │ commands │    │ /summary: fetch Jira weekly data  │    │
-│  │          │───▶│ Post summary via response_url     │    │
-│  └──────────┘    └──────────────────────────────────┘    │
-│                                                          │
-│  ┌──────────┐                                            │
-  │ Workers  │  Cache: Slack user IDs (7d TTL), Jira     │
-  │   KV     │  accountId→email map (24h TTL),           │
-  │          │  all_tickets typeahead (24h TTL)           │
-│  └──────────┘                                            │
+│   Workers KV: Slack user IDs, accountId→email map,       │
+│               all_tickets typeahead cache                 │
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -149,12 +135,12 @@ On submit, the backend dynamically detects the number of slots from `state.value
 
 ### Adding new commands
 
-The handler in `src/handlers/slack-command.ts` uses a `switch` dispatcher. To add a command:
+The handler in `src/slack/handlers/slack-command.handler.ts` uses a `switch` dispatcher. To add a command:
 
 ```typescript
 case "/mycommand":
-  ctx.waitUntil(processMyCommand(payload.user_id, payload.response_url, env));
-  return jsonResponse({ response_type: "ephemeral", text: "⏳ Procesando..." });
+  ctx.waitUntil(this.processMyCommand(payload.user_id, payload.response_url));
+  return this.jsonResponse({ response_type: "ephemeral", text: "⏳ Procesando..." });
 ```
 
 ---
@@ -386,29 +372,36 @@ npm run test:coverage
 
 ```
 tests/
-├── setup.ts                         # Mock factories and helpers
+├── __mocks__/
+│   ├── nestjs-common.ts              # No-op @Injectable/@Module stubs
+│   ├── nestjs-core.ts                # Lightweight NestFactory mock (manual DI)
+│   └── reflect-metadata.ts           # No-op stub
+├── setup.ts                          # Mock factories and helpers
 ├── utils/
-│   ├── date.test.ts                 # Date/timezone utility tests
-│   └── crypto.test.ts               # Slack signature verification tests
+│   ├── date.test.ts                  # Date/timezone utility tests
+│   └── crypto.test.ts                # Slack signature verification tests
 ├── services/
-│   ├── aggregator.test.ts           # Hours aggregation logic tests
-│   ├── jira.test.ts                 # Jira API service tests
-│   └── slack.test.ts                # Slack API service tests
+│   ├── aggregator.test.ts            # Hours aggregation logic tests
+│   ├── jira.test.ts                  # Jira API service tests
+│   └── slack.test.ts                 # Slack API service tests
 ├── handlers/
-│   ├── cron.test.ts                 # Cron trigger handler tests
-│   ├── slack-interaction.test.ts    # Slack interaction handler tests
-│   └── slack-options.test.ts        # Slack options endpoint tests
+│   ├── cron.test.ts                  # Cron trigger handler tests
+│   ├── slack-command.test.ts         # Slack command handler tests
+│   ├── slack-interaction.test.ts     # Slack interaction handler tests
+│   └── slack-options.test.ts         # Slack options endpoint tests
 ├── builders/
-│   └── message-builder.test.ts      # Block Kit builder tests
+│   └── message-builder.test.ts       # Block Kit builder tests
 └── integration/
-    └── index.test.ts                # Router integration tests
+    └── index.test.ts                 # Router integration tests
 ```
 
 ### Mocking strategy
 
+- **NestJS runtime**: Aliased to lightweight stubs via `vitest.config.mts` (`@nestjs/common`, `@nestjs/core`, `reflect-metadata`). Decorators become no-ops; `NestFactory.createApplicationContext` manually wires dependencies. This avoids CJS/ESM conflicts in the Workers pool.
 - **External APIs (Jira, Slack)**: Mocked via `vi.stubGlobal("fetch", ...)` to intercept all HTTP calls
 - **KV namespace**: Either real miniflare KV (from pool config) or manual mock with `vi.fn()` for precise control
 - **Date/time**: Spied via `vi.spyOn()` to control `getCurrentHourET()`, `getTodayET()`, etc.
+- **Service instantiation**: Tests create `@Injectable()` classes directly with `new`, using shim functions to wrap calls in `runInContext()` for AsyncLocalStorage access
 
 ---
 

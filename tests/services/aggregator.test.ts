@@ -1,11 +1,9 @@
 import { describe, it, expect } from "vitest";
-import {
-  aggregateUserHours,
-  aggregateWeeklyHours,
-  aggregateWeeklyHoursByComponent,
-} from "../../src/services/aggregator.ts";
+import { AggregatorService } from "../../src/aggregator/aggregator.service.ts";
 import { createMockJiraTicket, createMockWorklog } from "../setup.ts";
-import type { JiraTicket } from "../../src/types/index.ts";
+import type { JiraTicket } from "../../src/common/types/index.ts";
+
+const service = new AggregatorService();
 
 describe("aggregateUserHours", () => {
   const targetDate = "2026-04-08";
@@ -16,7 +14,9 @@ describe("aggregateUserHours", () => {
 
   it("returns 0 hours for users with no worklogs", () => {
     const issues: JiraTicket[] = [];
-    const result = aggregateUserHours(issues, accountEmailMap, targetDate, ["user1@example.com"]);
+    const result = service.aggregateUserHours(issues, accountEmailMap, targetDate, [
+      "user1@example.com",
+    ]);
 
     const summary = result.get("user1@example.com");
     expect(summary).toBeDefined();
@@ -46,7 +46,9 @@ describe("aggregateUserHours", () => {
       }),
     ];
 
-    const result = aggregateUserHours(issues, accountEmailMap, targetDate, ["user1@example.com"]);
+    const result = service.aggregateUserHours(issues, accountEmailMap, targetDate, [
+      "user1@example.com",
+    ]);
 
     const summary = result.get("user1@example.com");
     expect(summary).toBeDefined();
@@ -84,7 +86,9 @@ describe("aggregateUserHours", () => {
       }),
     ];
 
-    const result = aggregateUserHours(issues, accountEmailMap, targetDate, ["user1@example.com"]);
+    const result = service.aggregateUserHours(issues, accountEmailMap, targetDate, [
+      "user1@example.com",
+    ]);
 
     const summary = result.get("user1@example.com");
     expect(summary!.totalHours).toBe(3);
@@ -112,7 +116,9 @@ describe("aggregateUserHours", () => {
       }),
     ];
 
-    const result = aggregateUserHours(issues, accountEmailMap, targetDate, ["user1@example.com"]);
+    const result = service.aggregateUserHours(issues, accountEmailMap, targetDate, [
+      "user1@example.com",
+    ]);
 
     const summary = result.get("user1@example.com");
     expect(summary!.totalHours).toBe(2); // Only the 2h from today
@@ -120,7 +126,7 @@ describe("aggregateUserHours", () => {
 
   it("pre-populates configured users with 0 hours", () => {
     const issues: JiraTicket[] = [];
-    const result = aggregateUserHours(issues, accountEmailMap, targetDate, [
+    const result = service.aggregateUserHours(issues, accountEmailMap, targetDate, [
       "user1@example.com",
       "user2@example.com",
     ]);
@@ -147,7 +153,7 @@ describe("aggregateUserHours", () => {
       }),
     ];
 
-    const result = aggregateUserHours(issues, extraMap, targetDate, ["user1@example.com"]);
+    const result = service.aggregateUserHours(issues, extraMap, targetDate, ["user1@example.com"]);
 
     expect(result.has("external@example.com")).toBe(true);
     expect(result.get("external@example.com")!.totalHours).toBe(1);
@@ -167,7 +173,9 @@ describe("aggregateUserHours", () => {
       }),
     ];
 
-    const result = aggregateUserHours(issues, accountEmailMap, targetDate, ["user1@example.com"]);
+    const result = service.aggregateUserHours(issues, accountEmailMap, targetDate, [
+      "user1@example.com",
+    ]);
 
     const summary = result.get("user1@example.com");
     expect(summary!.totalHours).toBe(1);
@@ -181,7 +189,7 @@ describe("aggregateWeeklyHours", () => {
 
   it("returns breakdown by day (Mon-Fri)", () => {
     const issues: JiraTicket[] = [];
-    const result = aggregateWeeklyHours(
+    const result = service.aggregateWeeklyHours(
       issues,
       accountEmailMap,
       ["user1@example.com"],
@@ -218,7 +226,7 @@ describe("aggregateWeeklyHours", () => {
       }),
     ];
 
-    const result = aggregateWeeklyHours(
+    const result = service.aggregateWeeklyHours(
       issues,
       accountEmailMap,
       ["user1@example.com"],
@@ -254,7 +262,7 @@ describe("aggregateWeeklyHours", () => {
       }),
     ];
 
-    const result = aggregateWeeklyHours(
+    const result = service.aggregateWeeklyHours(
       issues,
       accountEmailMap,
       ["user1@example.com"],
@@ -295,7 +303,7 @@ describe("aggregateWeeklyHours", () => {
       }),
     ];
 
-    const result = aggregateWeeklyHours(
+    const result = service.aggregateWeeklyHours(
       issues,
       accountEmailMap,
       ["user1@example.com"],
@@ -318,7 +326,7 @@ describe("aggregateWeeklyHoursByComponent", () => {
 
   it("returns empty components when user has no worklogs", () => {
     const issues: JiraTicket[] = [];
-    const result = aggregateWeeklyHoursByComponent(
+    const result = service.aggregateWeeklyHoursByComponent(
       issues,
       accountEmailMap,
       userEmail,
@@ -359,7 +367,7 @@ describe("aggregateWeeklyHoursByComponent", () => {
       }),
     ];
 
-    const result = aggregateWeeklyHoursByComponent(
+    const result = service.aggregateWeeklyHoursByComponent(
       issues,
       accountEmailMap,
       userEmail,
@@ -391,7 +399,7 @@ describe("aggregateWeeklyHoursByComponent", () => {
       }),
     ];
 
-    const result = aggregateWeeklyHoursByComponent(
+    const result = service.aggregateWeeklyHoursByComponent(
       issues,
       accountEmailMap,
       userEmail,
@@ -419,7 +427,7 @@ describe("aggregateWeeklyHoursByComponent", () => {
       }),
     ];
 
-    const result = aggregateWeeklyHoursByComponent(
+    const result = service.aggregateWeeklyHoursByComponent(
       issues,
       accountEmailMap,
       userEmail,
@@ -451,7 +459,7 @@ describe("aggregateWeeklyHoursByComponent", () => {
       }),
     ];
 
-    const result = aggregateWeeklyHoursByComponent(
+    const result = service.aggregateWeeklyHoursByComponent(
       issues,
       accountEmailMap,
       userEmail,
@@ -476,7 +484,7 @@ describe("aggregateWeeklyHoursByComponent", () => {
       }),
     ];
 
-    const result = aggregateWeeklyHoursByComponent(
+    const result = service.aggregateWeeklyHoursByComponent(
       issues,
       accountEmailMap,
       userEmail,
@@ -508,7 +516,7 @@ describe("aggregateWeeklyHoursByComponent", () => {
       }),
     ];
 
-    const result = aggregateWeeklyHoursByComponent(
+    const result = service.aggregateWeeklyHoursByComponent(
       issues,
       accountEmailMap,
       userEmail,
@@ -537,7 +545,7 @@ describe("aggregateWeeklyHoursByComponent", () => {
       }),
     ];
 
-    const result = aggregateWeeklyHoursByComponent(
+    const result = service.aggregateWeeklyHoursByComponent(
       issues,
       accountEmailMap,
       userEmail,

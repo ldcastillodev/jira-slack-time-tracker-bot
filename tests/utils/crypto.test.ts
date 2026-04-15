@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { verifySlackSignature } from "../../src/utils/crypto.ts";
+import { verifySlackSignature } from "../../src/common/utils/crypto.ts";
 import { generateSlackSignature } from "../setup.ts";
 
 const SIGNING_SECRET = "test-signing-secret";

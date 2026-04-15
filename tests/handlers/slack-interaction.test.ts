@@ -1,7 +1,30 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { handleSlackInteraction } from "../../src/handlers/slack-interaction.ts";
+import { SlackInteractionHandler } from "../../src/slack/handlers/slack-interaction.handler.ts";
+import { RequestContextService } from "../../src/context/request-context.service.ts";
+import { ConfigService } from "../../src/config/config.service.ts";
+import { JiraService } from "../../src/jira/jira.service.ts";
+import { SlackService } from "../../src/slack/slack.service.ts";
+import { AggregatorService } from "../../src/aggregator/aggregator.service.ts";
+import { MessageBuilderService } from "../../src/builders/message-builder.service.ts";
+import { runInContext } from "../../src/context/async-local-storage.ts";
 import { createMockEnv, createMockSlackPayload, createSignedSlackRequest } from "../setup.ts";
-import type { Env } from "../../src/types/index.ts";
+import type { Env } from "../../src/common/types/index.ts";
+
+let interactionHandler: SlackInteractionHandler;
+
+function setupHandler() {
+  const rcs = new RequestContextService();
+  const cs = new ConfigService(rcs);
+  const js = new JiraService(rcs, cs);
+  const ss = new SlackService(rcs);
+  const as = new AggregatorService();
+  const mbs = new MessageBuilderService();
+  interactionHandler = new SlackInteractionHandler(rcs, cs, js, ss, as, mbs);
+}
+
+// Shim: preserve old call signature
+const handleSlackInteraction = (request: Request, e: Env, ctx: ExecutionContext) =>
+  runInContext(e, ctx, () => interactionHandler.handleSlackInteraction(request));
 
 describe("handleSlackInteraction", () => {
   let env: Env;
@@ -20,6 +43,7 @@ describe("handleSlackInteraction", () => {
     fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
     env = createMockEnv();
+    setupHandler();
   });
 
   afterEach(() => {
