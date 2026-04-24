@@ -50,8 +50,8 @@ export default {
   ): Promise<void> {
     switch (controller.cron) {
       // Casos para el reporte de horas (4 PM ET)
-      case "0 20 * * 1-5":
-      case "0 21 * * 1-5":
+      case "0 20 * * 2-6":
+      case "0 21 * * 2-6":
         await handleScheduledSummary(env);
         break;
 
