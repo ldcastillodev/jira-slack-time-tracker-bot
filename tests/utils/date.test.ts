@@ -11,7 +11,7 @@ import {
   getDayOfWeekFromSpanishAbbrev,
   getDateForDayOfCurrentWeek,
   getDayOfWeekET,
-  formatDateSpanishLong,
+  formatDateLong,
 } from "../../src/utils/date.ts";
 
 describe("date utils", () => {
@@ -198,25 +198,25 @@ describe("date utils", () => {
     });
   });
 
-  describe("formatDateSpanishLong", () => {
+  describe("formatDateLong", () => {
     it("formats Friday April 10 2026 correctly", () => {
-      const result = formatDateSpanishLong("2026-04-10");
-      expect(result).toBe("viernes 10 de abril de 2026");
+      const result = formatDateLong("2026-04-10");
+      expect(result).toBe("Friday, April 10, 2026");
     });
 
     it("formats Monday April 6 2026 correctly", () => {
-      const result = formatDateSpanishLong("2026-04-06");
-      expect(result).toBe("lunes 6 de abril de 2026");
+      const result = formatDateLong("2026-04-06");
+      expect(result).toBe("Monday, April 6, 2026");
     });
 
     it("formats a date in January correctly", () => {
-      const result = formatDateSpanishLong("2026-01-01");
-      expect(result).toBe("jueves 1 de enero de 2026");
+      const result = formatDateLong("2026-01-01");
+      expect(result).toBe("Thursday, January 1, 2026");
     });
 
     it("formats a date in December correctly", () => {
-      const result = formatDateSpanishLong("2026-12-25");
-      expect(result).toBe("viernes 25 de diciembre de 2026");
+      const result = formatDateLong("2026-12-25");
+      expect(result).toBe("Friday, December 25, 2026");
     });
   });
 

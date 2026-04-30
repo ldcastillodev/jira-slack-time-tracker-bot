@@ -187,7 +187,7 @@ describe("handleSlackCommand", () => {
     const callBody = JSON.parse(responseUrlCall![1].body as string) as {
       blocks: Array<{ text: { text: string } }>;
     };
-    expect(callBody.blocks[0].text.text).toContain("No se pudo identificar");
+    expect(callBody.blocks[0].text.text).toContain("Could not identify");
   });
 
   // ─── /summary-components ───
@@ -204,7 +204,7 @@ describe("handleSlackCommand", () => {
     expect(response.status).toBe(200);
     const body = (await response.json()) as { response_type: string; text: string };
     expect(body.response_type).toBe("ephemeral");
-    expect(body.text).toContain("componente");
+    expect(body.text).toContain("component");
     expect(mockCtx.waitUntil).toHaveBeenCalledOnce();
   });
 
@@ -284,7 +284,7 @@ describe("handleSlackCommand", () => {
     expect(response.status).toBe(200);
     const body = (await response.json()) as { response_type: string; text: string };
     expect(body.response_type).toBe("ephemeral");
-    expect(body.text).toContain("inválido");
+    expect(body.text).toContain("Invalid");
     // Validation is synchronous: no async work scheduled
     expect(mockCtx.waitUntil).not.toHaveBeenCalled();
   });
@@ -428,7 +428,7 @@ describe("handleSlackCommand", () => {
       expect(response.status).toBe(200);
       const body = (await response.json()) as { response_type: string; text: string };
       expect(body.response_type).toBe("ephemeral");
-      expect(body.text).toContain("Actualizando");
+      expect(body.text).toContain("Updating");
       expect(mockCtx.waitUntil).toHaveBeenCalledOnce();
     });
 
@@ -477,7 +477,7 @@ describe("handleSlackCommand", () => {
         blocks: Array<{ text?: { text: string } }>;
       };
       const blockTexts = sentBody.blocks.map((b) => b.text?.text ?? "").join(" ");
-      expect(blockTexts).toContain("✅ Tickets Actualizados");
+      expect(blockTexts).toContain("✅ Tickets Updated");
     });
 
     it("deduplicates when Jira returns a key that matches a generic ticket", async () => {
@@ -570,7 +570,7 @@ describe("handleSlackCommand", () => {
         blocks: Array<{ text?: { text: string } }>;
       };
       const blockTexts = sentBody.blocks.map((b) => b.text?.text ?? "").join(" ");
-      expect(blockTexts).toContain("✅ Tickets Actualizados");
+      expect(blockTexts).toContain("✅ Tickets Updated");
     });
   });
 
@@ -650,7 +650,7 @@ describe("validateAndResolveDailySubmissionDate", () => {
     const result = validateAndResolveDailySubmissionDate("sabado");
     expect("error" in result).toBe(true);
     if ("error" in result) {
-      expect(result.error).toContain("inválido");
+      expect(result.error).toContain("Invalid");
     }
   });
 
@@ -687,11 +687,11 @@ describe("validateAndResolveDailySubmissionDate", () => {
       if (!("error" in result)) {
         // If resolved, the date should not be in the future
         expect(result.date <= today).toBe(true);
-        // Should have a Spanish label
-        expect(result.label).toMatch(/\w+ \d+ de \w+ de \d{4}/);
+        // Should have an English label
+        expect(result.label).toMatch(/\w+, \w+ \d+, \d{4}/);
       } else {
-        // If error, should mention "futuro"
-        expect(result.error).toContain("futuro");
+        // If error, should mention "future"
+        expect(result.error).toContain("future");
       }
     }
   });

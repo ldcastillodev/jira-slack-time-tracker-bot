@@ -116,8 +116,8 @@ describe("handleScheduledSummary (cron handler)", () => {
       const dateLabel = call[6]; // 7th argument (0-indexed: 6)
       expect(dateLabel).toBeDefined();
       expect(typeof dateLabel).toBe("string");
-      // Should be the Spanish long format for 2026-04-08 (miércoles 8 de abril de 2026)
-      expect(dateLabel).toContain("abril");
+      // Should be the English long format for 2026-04-08 (Wednesday, April 8, 2026)
+      expect(dateLabel).toContain("April");
       expect(dateLabel).toContain("2026");
     }
 

@@ -12,7 +12,7 @@ import {
   getDayOfWeekET,
   getDayOfWeekFromSpanishAbbrev,
   getDateForDayOfCurrentWeek,
-  formatDateSpanishLong,
+  formatDateLong,
 } from "../utils/date.ts";
 import { loadConfig } from "../../config/config.ts";
 import {
@@ -83,14 +83,14 @@ export async function handleSlackCommand(
       ctx.waitUntil(processSummaryCommand(payload.user_id, payload.response_url, env));
       return jsonResponse({
         response_type: "ephemeral",
-        text: "⏳ Generando tu resumen semanal...",
+        text: "⏳ Generating your weekly summary...",
       });
 
     case "/summary-components":
       ctx.waitUntil(processSummaryComponentsCommand(payload.user_id, payload.response_url, env));
       return jsonResponse({
         response_type: "ephemeral",
-        text: "⏳ Generando tu resumen semanal por componente...",
+        text: "⏳ Generating your weekly summary by component...",
       });
 
     case "/submit": {
@@ -110,7 +110,7 @@ export async function handleSlackCommand(
       );
       return jsonResponse({
         response_type: "ephemeral",
-        text: "⏳ preparando tu formulario...",
+        text: "⏳ Preparing your form...",
       });
     }
 
@@ -118,20 +118,20 @@ export async function handleSlackCommand(
       ctx.waitUntil(processRefreshTicketsCommand(payload.response_url, env));
       return jsonResponse({
         response_type: "ephemeral",
-        text: "⏳ Actualizando tickets...",
+        text: "⏳ Updating tickets...",
       });
 
     case "/help":
       return jsonResponse({
         response_type: "ephemeral",
         blocks: buildHelpMessage(),
-        text: "📖 Ayuda — Bot de Horas",
+        text: "📖 Help — Hours Bot",
       });
 
     default:
       return jsonResponse({
         response_type: "ephemeral",
-        text: `⚠️ Comando desconocido: \`${command}\``,
+        text: `⚠️ Unknown command: \`${command}\``,
       });
   }
 }
@@ -160,16 +160,16 @@ export function validateAndResolveDailySubmissionDate(
     if (todayDayOfWeek > 5) {
       return {
         error:
-          "⚠️ Hoy es fin de semana. Usa `/submit lun|mar|mie|jue|vie` para cargar horas en un día de la semana en curso.",
+          "⚠️ Today is a weekend. Use `/submit lun|mar|mie|jue|vie` to log hours for a weekday of the current week.",
       };
     }
-    return { date: todayET, label: formatDateSpanishLong(todayET) };
+    return { date: todayET, label: formatDateLong(todayET) };
   }
 
   const dayOfWeek = getDayOfWeekFromSpanishAbbrev(paramText);
   if (dayOfWeek === null) {
     return {
-      error: `⚠️ Día inválido: \`${paramText}\`. Usa uno de: \`lun\`, \`mar\`, \`mie\`, \`jue\`, \`vie\`.`,
+      error: `⚠️ Invalid day: \`${paramText}\`. Use one of: \`lun\`, \`mar\`, \`mie\`, \`jue\`, \`vie\`.`,
     };
   }
 
@@ -177,11 +177,11 @@ export function validateAndResolveDailySubmissionDate(
 
   if (targetDate > todayET) {
     return {
-      error: `⚠️ No puedes consultar días futuros. \`${paramText}\` corresponde al *${formatDateSpanishLong(targetDate)}*.`,
+      error: `⚠️ You can't request a future day. \`${paramText}\` falls on *${formatDateLong(targetDate)}*.`,
     };
   }
 
-  return { date: targetDate, label: formatDateSpanishLong(targetDate) };
+  return { date: targetDate, label: formatDateLong(targetDate) };
 }
 
 // ─── Async processors ───
@@ -204,7 +204,7 @@ async function processSummaryCommand(
     if (!userEmail) {
       await sendCommandError(
         responseUrl,
-        "⚠️ No se pudo identificar tu usuario. Contacta al administrador.",
+        "⚠️ Could not identify your user. Contact the administrator.",
       );
       return;
     }
@@ -224,7 +224,7 @@ async function processSummaryCommand(
     const weeklySummary = weeklyMap.get(userEmail.toLowerCase());
 
     if (!weeklySummary) {
-      await sendCommandError(responseUrl, "⚠️ No se encontraron datos de horas para esta semana.");
+      await sendCommandError(responseUrl, "⚠️ No hour data found for this week.");
       return;
     }
 
@@ -235,14 +235,14 @@ async function processSummaryCommand(
     await updateMessageViaResponseUrl(
       responseUrl,
       blocks,
-      `Resumen semanal (${weekMonday} – ${weekFriday}): ${weeklySummary.weekTotal.toFixed(1)}h / ${config.tracking.weeklyTarget}h`,
+      `Weekly summary (${weekMonday} – ${weekFriday}): ${weeklySummary.weekTotal.toFixed(1)}h / ${config.tracking.weeklyTarget}h`,
       true,
     );
   } catch (err) {
     console.error("processSummaryCommand error:", err);
     await sendCommandError(
       responseUrl,
-      "❌ Ocurrió un error al obtener tu resumen. Por favor intenta de nuevo más tarde.",
+      "❌ An error occurred while fetching your summary. Please try again later.",
     );
   }
 }
@@ -264,7 +264,7 @@ async function processSummaryComponentsCommand(
     if (!userEmail) {
       await sendCommandError(
         responseUrl,
-        "⚠️ No se pudo identificar tu usuario. Contacta al administrador.",
+        "⚠️ Could not identify your user. Contact the administrator.",
       );
       return;
     }
@@ -288,14 +288,14 @@ async function processSummaryComponentsCommand(
     await updateMessageViaResponseUrl(
       responseUrl,
       blocks,
-      `Resumen semanal por componente (${monday} – ${friday}): ${breakdown.components.length} componente(s)`,
+      `Weekly summary by component (${monday} – ${friday}): ${breakdown.components.length} component(s)`,
       true,
     );
   } catch (err) {
     console.error("processSummaryComponentsCommand error:", err);
     await sendCommandError(
       responseUrl,
-      "❌ Ocurrió un error al obtener tu resumen por componente. Por favor intenta de nuevo más tarde.",
+      "❌ An error occurred while fetching your component summary. Please try again later.",
     );
   }
 }
@@ -319,7 +319,7 @@ async function processDailySummaryCommand(
     if (!userEmail) {
       await sendCommandError(
         responseUrl,
-        "⚠️ No se pudo identificar tu usuario. Contacta al administrador.",
+        "⚠️ Could not identify your user. Contact the administrator.",
       );
       return;
     }
@@ -334,7 +334,7 @@ async function processDailySummaryCommand(
     const summary = summaries.get(userEmail.toLowerCase());
 
     if (!summary) {
-      await sendCommandError(responseUrl, "⚠️ No se encontraron datos de horas para este día.");
+      await sendCommandError(responseUrl, "⚠️ No hour data found for this day.");
       return;
     }
 
@@ -351,14 +351,14 @@ async function processDailySummaryCommand(
     await updateMessageViaResponseUrl(
       responseUrl,
       blocks,
-      `Resumen del ${dateLabel}: ${summary.totalHours.toFixed(1)}h / ${config.tracking.dailyTarget}h`,
+      `Summary for ${dateLabel}: ${summary.totalHours.toFixed(1)}h / ${config.tracking.dailyTarget}h`,
       true,
     );
   } catch (err) {
     console.error("processDailySummaryCommand error:", err);
     await sendCommandError(
       responseUrl,
-      "❌ Ocurrió un error al obtener tu resumen diario. Por favor intenta de nuevo más tarde.",
+      "❌ An error occurred while fetching your daily summary. Please try again later.",
     );
   }
 }
@@ -370,16 +370,16 @@ async function processRefreshTicketsCommand(responseUrl: string, env: Env): Prom
     const blocks: SlackBlock[] = [
       {
         type: "section",
-        text: { type: "plain_text", text: "✅ Tickets Actualizados", emoji: true },
+        text: { type: "plain_text", text: "✅ Tickets Updated", emoji: true },
       },
     ];
 
-    await updateMessageViaResponseUrl(responseUrl, blocks, "✅ Tickets Actualizados", true);
+    await updateMessageViaResponseUrl(responseUrl, blocks, "✅ Tickets Updated", true);
   } catch (err) {
     console.error("processRefreshTicketsCommand error:", err);
     await sendCommandError(
       responseUrl,
-      "❌ Ocurrió un error al actualizar los tickets. Por favor intenta de nuevo más tarde.",
+      "❌ An error occurred while updating tickets. Please try again later.",
     );
   }
 }
