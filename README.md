@@ -6,24 +6,24 @@ Interactive bot for daily hour logging, integrating **Jira** and **Slack** on **
 
 Every weekday at **4:00 PM ET**, the bot sends each configured user a Slack DM:
 
-| Scenario | Behavior |
-|----------|----------|
+| Scenario        | Behavior                                                                                                                                                  |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **< 8h logged** | Breakdown + 3 interactive slots (expandable to 10 with "➕ Add ticket") to log hours. Typeahead ticket search, 0.5h intervals, real-time Jira validation. |
-| **= 8h logged** | Breakdown only — no interactive form. |
-| **Friday** | Daily report + weekly summary (total vs. 40h goal, day-by-day breakdown). |
+| **= 8h logged** | Breakdown only — no interactive form.                                                                                                                     |
+| **Friday**      | Daily report + weekly summary (total vs. 40h goal, day-by-day breakdown).                                                                                 |
 
 At **11 AM ET daily**, the ticket typeahead cache is refreshed automatically.
 
 ## Stack
 
-| Component | Technology |
-|-----------|------------|
-| Runtime | Cloudflare Workers |
-| Language | TypeScript |
-| KV store | Cloudflare Workers KV |
-| Scheduling | Cloudflare Cron Triggers |
-| Tests | Vitest + `@cloudflare/vitest-pool-workers` (real Workers runtime) |
-| Lint/Format | ESLint + Prettier |
+| Component   | Technology                                                        |
+| ----------- | ----------------------------------------------------------------- |
+| Runtime     | Cloudflare Workers                                                |
+| Language    | TypeScript                                                        |
+| KV store    | Cloudflare Workers KV                                             |
+| Scheduling  | Cloudflare Cron Triggers                                          |
+| Tests       | Vitest + `@cloudflare/vitest-pool-workers` (real Workers runtime) |
+| Lint/Format | ESLint + Prettier                                                 |
 
 ## Prerequisites
 
@@ -167,12 +167,12 @@ Pre-commit hooks (Husky + lint-staged) run `eslint --fix`, `prettier --write`, a
 
 ## Costs
 
-| Component | Free Tier |
-|-----------|-----------|
+| Component         | Free Tier    |
+| ----------------- | ------------ |
 | Cloudflare Worker | 100K req/day |
-| KV Reads | 100K/day |
-| KV Writes | 1K/day |
-| Cron Triggers | 5 (2 used) |
+| KV Reads          | 100K/day     |
+| KV Writes         | 1K/day       |
+| Cron Triggers     | 5 (2 used)   |
 
 ## Docs
 
