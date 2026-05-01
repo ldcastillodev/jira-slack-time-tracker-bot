@@ -1,109 +1,93 @@
 # CLAUDE.md
 
-Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-**Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
+## Commands
 
-## 1. Think Before Coding
-
-**Don't assume. Don't hide confusion. Surface tradeoffs.**
-
-Before implementing:
-
-- State your assumptions explicitly. If uncertain, ask.
-- If multiple interpretations exist, present them - don't pick silently.
-- If a simpler approach exists, say so. Push back when warranted.
-- If something is unclear, stop. Name what's confusing. Ask.
-
-## 2. Simplicity First
-
-**Minimum code that solves the problem. Nothing speculative.**
-
-- No features beyond what was asked.
-- No abstractions for single-use code.
-- No "flexibility" or "configurability" that wasn't requested.
-- No error handling for impossible scenarios.
-- If you write 200 lines and it could be 50, rewrite it.
-
-Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
-
-## 3. Surgical Changes
-
-**Touch only what you must. Clean up only your own mess.**
-
-When editing existing code:
-
-- Don't "improve" adjacent code, comments, or formatting.
-- Don't refactor things that aren't broken.
-- Match existing style, even if you'd do it differently.
-- If you notice unrelated dead code, mention it - don't delete it.
-
-When your changes create orphans:
-
-- Remove imports/variables/functions that YOUR changes made unused.
-- Don't remove pre-existing dead code unless asked.
-
-The test: Every changed line should trace directly to the user's request.
-
-## 4. Goal-Driven Execution
-
-**Define success criteria. Loop until verified.**
-
-Transform tasks into verifiable goals:
-
-- "Add validation" → "Write tests for invalid inputs, then make them pass"
-- "Fix the bug" → "Write a test that reproduces it, then make it pass"
-- "Refactor X" → "Ensure tests pass before and after"
-
-For multi-step tasks, state a brief plan:
-
-```
-1. [Step] → verify: [check]
-2. [Step] → verify: [check]
-3. [Step] → verify: [check]
+```bash
+npm run dev          # Local dev server (port 8787)
+npm test             # Run tests once
+npm run test:watch   # Watch mode
+npm run test:coverage
+npm run lint         # ESLint check
+npm run lint:fix
+npm run format       # Prettier auto-format
+npm run check        # TypeScript type check (no emit)
+npm run build        # Wrangler dry-run deploy
+npm run deploy       # Deploy to production
+npm run tail         # Stream live logs from deployed Worker
 ```
 
-Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+Run single test file: `npx vitest run tests/handlers/cron.test.ts`
 
----
+Local trigger (requires `.env.dev`): `curl -X POST http://localhost:8787/trigger`
 
-**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+## Architecture
 
----
+Cloudflare Workers app (TypeScript) that sends daily Slack DMs prompting users to log Jira worklogs. No database — Jira is source of truth; Cloudflare KV is cache only.
 
-## Project: Jira Time Tracker Bot
+**Entry point:** `src/index.ts` exports `{ fetch, scheduled }`.
 
-### Key gotchas
+**Two cron triggers** (dual UTC entries per cron to handle EDT/EST DST — handler checks `getCurrentHourET()` and exits early if wrong hour):
+- 4 PM ET → `handleScheduledSummary()` — DMs every configured user with hours logged + interactive form
+- 11 AM ET → `handleScheduledTicketsRefresh()` — refreshes KV ticket typeahead cache
 
-**Slash command is `/submit`** — not `/daily-summary`. Anywhere you see `/daily-summary` is a stale reference.
+**HTTP endpoints:**
+- `POST /slack/interactions` → `handleSlackInteraction` (button clicks: submit, add_slot)
+- `POST /slack/options` → `handleSlackOptions` (typeahead ticket suggestions)
+- `POST /slack/commands` → `handleSlackCommand` (`/submit`, `/summary`, `/summary-components`, `/refresh-tickets`, `/help`)
+- `POST /trigger` → manual cron trigger for dev
+- `GET /health`
 
-**Config is split across three locations:**
+**Service layer (`src/services/`):**
+- `jira.ts` — Jira REST API v3: search tickets (JQL), post worklogs, refresh KV cache, build accountId↔email map
+- `slack.ts` — Slack Web API: lookup user by email (KV cached), send DMs, update messages via response URL
+- `aggregator.ts` — roll up raw worklogs into daily/weekly/component breakdowns
 
-- `config/tracker-config.json` — tracking thresholds only (`dailyTarget`, `weeklyTarget`, `timezone`, `cronHourET`)
-- `JIRA_CONFIG` secret — JSON string: `{ jira: { boards, genericTickets, projectComponents } }`
-- `USERS` secret — JSON string: `{ "email@company.com": "jira_api_token" }` (per-user tokens, not an array)
+**Handlers (`src/handlers/`):** cron, slack-interaction, slack-command, slack-options
 
-**`projectComponents` in `JIRA_CONFIG` is required** — used in JQL `component IN (...)` to scope worklog queries. Missing it breaks ticket fetching.
+**Builder:** `src/builders/message-builder.ts` — all Slack Block Kit message construction
 
-**File paths that differ from what you'd expect:**
+**Utils:** `src/utils/date.ts` (ET timezone helpers), `src/utils/crypto.ts` (HMAC-SHA256 Slack signature verification)
 
-- Config loader: `config/config.ts` (not `src/config.ts`)
-- Cache constants: `src/constants/constants.ts` (not `src/constants.ts`)
+## KV Cache Keys
 
-**KV TTLs** (from `src/constants/constants.ts`):
+| Key | TTL | Contents |
+|-----|-----|----------|
+| `all_tickets` | 7 days | Typeahead ticket list |
+| `jira_account_map` | 24h | accountId ↔ email map |
+| `slack_user:{email}` | 7 days | Slack user ID |
 
-- `all_tickets` → 7 days
-- `jira_account_map` → 24 hours
-- `slack_user:{email}` → 7 days
+## Environment / Secrets
 
-**Two cron triggers** registered in `wrangler.toml`:
+| Variable | Notes |
+|----------|-------|
+| `JIRA_API_TOKEN` | Service account token (for reads/search) |
+| `JIRA_USER_EMAIL` | Service account email |
+| `JIRA_BASE_URL` | e.g. `https://applydigital.atlassian.net` |
+| `SLACK_BOT_TOKEN` | Scopes: `chat:write`, `users:read.email`, `im:write`, `commands` |
+| `SLACK_SIGNING_SECRET` | Webhook signature verification |
+| `JIRA_CONFIG` | JSON: `{ jira: { boards, genericTickets, projectComponents } }` |
+| `USERS` | JSON: `{ "email": "jira-api-token" }` — each user posts worklogs with their own token |
 
-- `0 20 * * 1-5` → 4PM ET daily summary (Mon–Fri), handler is `handleScheduledSummary`
-- `0 15 * * *` → 11AM ET ticket cache refresh (daily), handler is `handleScheduledTicketsRefresh`
-- Code also handles `0 21` / `0 16` variants for EST (winter DST) but they're not registered
+Local dev: secrets go in `.env.dev` (not committed). See `docs/configuration.md` for JSON formats.
 
-**Hours are never cached in KV** — always fetched live from Jira on every validation.
+## Testing
 
-### Docs
+Tests run in real Cloudflare Workers runtime via `@cloudflare/vitest-pool-workers`. Miniflare bindings (mock secrets, KV) are configured in `vitest.config.mts`.
 
-`docs/` directory exists with: `configuration.md`, `architecture.md`, `slash-commands.md`, `ci-cd.md`. Keep these in sync when changing cron schedule, KV keys, commands, or config structure.
+Structure mirrors `src/`: `tests/builders/`, `tests/handlers/`, `tests/services/`, `tests/utils/`, `tests/integration/`.
+
+## Key Behaviors to Know
+
+**DST handling:** Two cron entries per schedule (e.g. `0 20 * * 2-6` and `0 21 * * 2-6`). Handler checks actual ET hour via `getCurrentHourET()` and no-ops if it doesn't match `config.cronHourET`.
+
+**Hours submission validation (in order):** same ISO week, each slot complete or empty, ≥1 slot, no duplicate tickets, sum ≤ dailyTarget, stale-data re-check against Jira.
+
+**Per-user Jira tokens:** worklogs posted with the submitting user's token (from `USERS` secret), not the service account. The service account is only used for reads.
+
+**Typeahead:** `external_select` with `min_query_length: 0`. Results grouped as "📌 Generic" + "📋 Project" from `all_tickets` KV.
+
+## Code Style
+
+Prettier: 100-char width, 2-space indent, trailing commas, double quotes, semicolons. ESLint: strict TypeScript-ESLint; `_`-prefixed vars are allowed to be unused. Pre-commit hooks (Husky + lint-staged) auto-fix staged `.ts` files.
