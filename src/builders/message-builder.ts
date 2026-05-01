@@ -12,13 +12,13 @@ import type {
 
 // ─── Day Abbreviations ───
 const DAY_NAMES: Record<number, string> = {
-  0: "Dom",
-  1: "Lun",
-  2: "Mar",
-  3: "Mié",
-  4: "Jue",
-  5: "Vie",
-  6: "Sáb",
+  0: "Sun",
+  1: "Mon",
+  2: "Tue",
+  3: "Wed",
+  4: "Thu",
+  5: "Fri",
+  6: "Sat",
 };
 
 function dayLabel(dateStr: string): string {
@@ -39,14 +39,14 @@ function buildHoursBreakdown(
   // Header
   blocks.push({
     type: "header",
-    text: { type: "plain_text", text: "⏱️ Reporte de Horas Diarias", emoji: true },
+    text: { type: "plain_text", text: "⏱️ Daily Hours Report", emoji: true },
   });
 
   // Greeting + Total
   const status =
     summary.totalHours >= dailyTarget
-      ? `✅ *${summary.totalHours.toFixed(1)}h* / ${dailyTarget}h — ¡Completo!`
-      : `⏳ *${summary.totalHours.toFixed(1)}h* / ${dailyTarget}h — Faltan *${(dailyTarget - summary.totalHours).toFixed(1)}h*`;
+      ? `✅ *${summary.totalHours.toFixed(1)}h* / ${dailyTarget}h — Complete!`
+      : `⏳ *${summary.totalHours.toFixed(1)}h* / ${dailyTarget}h — *${(dailyTarget - summary.totalHours).toFixed(1)}h* remaining`;
 
   const dateLine = dateLabel ? `\n📅 *${dateLabel}*` : "";
 
@@ -54,7 +54,7 @@ function buildHoursBreakdown(
     type: "section",
     text: {
       type: "mrkdwn",
-      text: `👋 Hola *${summary.displayName}*${dateLine}\n\n${status}`,
+      text: `👋 Hey *${summary.displayName}*${dateLine}\n\n${status}`,
     },
   });
 
@@ -64,10 +64,10 @@ function buildHoursBreakdown(
   if (summary.workedTickets.length === 0) {
     blocks.push({
       type: "section",
-      text: { type: "mrkdwn", text: "_No hay horas registradas hoy._" },
+      text: { type: "mrkdwn", text: "_No hours logged today._" },
     });
   } else {
-    let breakdown = "*Desglose por ticket:*\n";
+    let breakdown = "*Breakdown by ticket:*\n";
     for (const t of summary.workedTickets) {
       breakdown += `• \`${t.key}\` ${t.summary} — *${t.hours.toFixed(1)}h*\n`;
     }
@@ -102,7 +102,7 @@ function buildInteractiveSection(
     type: "section",
     text: {
       type: "mrkdwn",
-      text: `🔔 Te faltan *${remaining.toFixed(1)}h* para llegar a ${config.tracking.dailyTarget}h. ¡Carga tus horas directamente desde aquí!`,
+      text: `🔔 You're *${remaining.toFixed(1)}h* short of your ${config.tracking.dailyTarget}h target. Log your hours directly from here!`,
     },
   });
 
@@ -130,14 +130,14 @@ function buildInteractiveSection(
     blocks.push({ type: "divider" });
     blocks.push({
       type: "section",
-      text: { type: "mrkdwn", text: `📝 *Ranura ${i + 1}*` },
+      text: { type: "mrkdwn", text: `📝 *Slot ${i + 1}*` },
     });
 
     // Ticket selector — external_select with typeahead
     const ticketAccessory: SlackElement = {
       type: "external_select",
       action_id: `select_ticket_${i}`,
-      placeholder: { type: "plain_text", text: "Buscar ticket...", emoji: true },
+      placeholder: { type: "plain_text", text: "Search ticket...", emoji: true },
       min_query_length: 0,
     };
     if (existing?.ticketOption) {
@@ -155,7 +155,7 @@ function buildInteractiveSection(
     const hoursAccessory: SlackElement = {
       type: "static_select",
       action_id: `select_hours_${i}`,
-      placeholder: { type: "plain_text", text: "Elegir horas...", emoji: true },
+      placeholder: { type: "plain_text", text: "Select hours...", emoji: true },
       options: hoursOptions,
     };
     if (existing?.hoursOption) {
@@ -165,7 +165,7 @@ function buildInteractiveSection(
     blocks.push({
       type: "section",
       block_id: `hours_block_${i}`,
-      text: { type: "mrkdwn", text: "*Horas:*" },
+      text: { type: "mrkdwn", text: "*Hours:*" },
       accessory: hoursAccessory,
     });
   }
@@ -175,7 +175,7 @@ function buildInteractiveSection(
     {
       type: "button",
       action_id: "submit_hours",
-      text: { type: "plain_text", text: "✅ Cargar horas", emoji: true },
+      text: { type: "plain_text", text: "✅ Log hours", emoji: true },
       style: "primary",
       value: targetDate,
     },
@@ -185,7 +185,7 @@ function buildInteractiveSection(
     actionElements.push({
       type: "button",
       action_id: "add_slot",
-      text: { type: "plain_text", text: "➕ Agregar ranura extra", emoji: true },
+      text: { type: "plain_text", text: "➕ Add slot", emoji: true },
       value: `${effectiveSlotCount}:${targetDate}`,
     });
   }
@@ -207,13 +207,13 @@ function buildWeeklySummaryBlocks(weekly: WeeklyBreakdown, weeklyTarget: number)
   blocks.push({ type: "divider" });
   blocks.push({
     type: "header",
-    text: { type: "plain_text", text: "📊 Resumen Semanal", emoji: true },
+    text: { type: "plain_text", text: "📊 Weekly Summary", emoji: true },
   });
 
   const weekStatus =
     weekly.weekTotal >= weeklyTarget
-      ? `✅ *${weekly.weekTotal.toFixed(1)}h* / ${weeklyTarget}h — ¡Objetivo cumplido!`
-      : `⚠️ *${weekly.weekTotal.toFixed(1)}h* / ${weeklyTarget}h — Faltan *${(weeklyTarget - weekly.weekTotal).toFixed(1)}h*`;
+      ? `✅ *${weekly.weekTotal.toFixed(1)}h* / ${weeklyTarget}h — Target met!`
+      : `⚠️ *${weekly.weekTotal.toFixed(1)}h* / ${weeklyTarget}h — *${(weeklyTarget - weekly.weekTotal).toFixed(1)}h* remaining`;
 
   blocks.push({
     type: "section",
@@ -221,7 +221,7 @@ function buildWeeklySummaryBlocks(weekly: WeeklyBreakdown, weeklyTarget: number)
   });
 
   // Per-day breakdown
-  let dayBreakdown = "*Desglose por día:*\n";
+  let dayBreakdown = "*Breakdown by day:*\n";
   for (const day of weekly.days) {
     const icon = day.totalHours >= 8 ? "✅" : day.totalHours > 0 ? "⏳" : "❌";
     dayBreakdown += `${icon} *${dayLabel(day.date)}* (${day.date}): *${day.totalHours.toFixed(1)}h*`;
@@ -231,7 +231,7 @@ function buildWeeklySummaryBlocks(weekly: WeeklyBreakdown, weeklyTarget: number)
         dayBreakdown += `      • \`${t.key}\` ${t.summary} — ${t.hours.toFixed(1)}h\n`;
       }
     } else {
-      dayBreakdown += " — _Sin horas_\n";
+      dayBreakdown += " — _No hours_\n";
     }
   }
 
@@ -258,7 +258,7 @@ export function buildConfirmationMessage(
     type: "section",
     text: {
       type: "mrkdwn",
-      text: `✅ *¡Horas cargadas exitosamente!*\n${lines}`,
+      text: `✅ *Hours logged successfully!*\n${lines}`,
     },
   });
 
@@ -276,7 +276,7 @@ export function buildConfirmationMessage(
       type: "section",
       text: {
         type: "mrkdwn",
-        text: `⏳ Aún te faltan *${(dailyTarget - updatedSummary.totalHours).toFixed(1)}h*. Recibirás un nuevo mensaje para seguir cargando.`,
+        text: `⏳ You still have *${(dailyTarget - updatedSummary.totalHours).toFixed(1)}h* remaining. A new message will be sent so you can continue logging.`,
       },
     });
   }
@@ -291,7 +291,7 @@ export function buildConfirmationMessage(
  * - Scenario A (< dailyTarget): breakdown + interactive dropdown
  * - Scenario B (>= dailyTarget): breakdown only (informational)
  *
- * @param dateLabel - Optional Spanish long-form date label (e.g. "jueves 9 de abril de 2026")
+ * @param dateLabel - Optional long-form date label (e.g. "Friday, April 10, 2026")
  */
 export function buildDailyMessage(
   summary: UserHoursSummary,
@@ -343,21 +343,21 @@ export function buildWeeklyByComponentMessage(
 
   blocks.push({
     type: "header",
-    text: { type: "plain_text", text: "🧩 Resumen Semanal por Componente", emoji: true },
+    text: { type: "plain_text", text: "🧩 Weekly Summary by Component", emoji: true },
   });
 
   blocks.push({
     type: "section",
     text: {
       type: "mrkdwn",
-      text: `👋 Hola *${breakdown.displayName}* | Semana: ${weekMonday} – ${weekFriday}`,
+      text: `👋 Hey *${breakdown.displayName}* | Week: ${weekMonday} – ${weekFriday}`,
     },
   });
 
   if (breakdown.components.length === 0) {
     blocks.push({
       type: "section",
-      text: { type: "mrkdwn", text: "_No hay horas registradas esta semana._" },
+      text: { type: "mrkdwn", text: "_No hours logged this week._" },
     });
     return blocks;
   }
@@ -397,20 +397,19 @@ export function buildWeeklyByComponentMessage(
 
 /**
  * Builds an ephemeral help message listing all available slash commands.
- * Response is in Spanish, consistent with the project's UI language.
  * Returned synchronously — no external calls required.
  */
 export function buildHelpMessage(): SlackBlock[] {
   return [
     {
       type: "header",
-      text: { type: "plain_text", text: "📖 Ayuda — Bot de Horas", emoji: true },
+      text: { type: "plain_text", text: "📖 Help — Hours Bot", emoji: true },
     },
     {
       type: "section",
       text: {
         type: "mrkdwn",
-        text: "Soy un bot de seguimiento de horas integrado con *Jira* y *Slack*. Cada día hábil a las 4 PM ET te envío un reporte con tus horas del día y te permito registrar tiempo directamente desde Slack.",
+        text: "I'm a time tracking bot integrated with *Jira* and *Slack*. Every weekday at 4 PM ET I send you a report with your hours for the day and let you log time directly from Slack.",
       },
     },
     { type: "divider" },
@@ -419,13 +418,13 @@ export function buildHelpMessage(): SlackBlock[] {
       text: {
         type: "mrkdwn",
         text: [
-          "*Comandos disponibles:*",
+          "*Available commands:*",
           "",
-          "• `/summary` — Muestra tu resumen semanal de horas (Lun–Vie vs objetivo de 40h).",
-          "• `/summary-components` — Muestra tu resumen semanal agrupado por componente de Jira.",
-          "• `/submit [lun|mar|mie|jue|vie]` — Solicita un registro de horas específico de un día de la semana en curso (por defecto: hoy).",
-          "• `/refresh-tickets` — Actualiza el caché de tickets de Jira para la búsqueda por typeahead.",
-          "• `/help` — Muestra este mensaje de ayuda.",
+          "• `/summary` — Shows your weekly hours summary (Mon–Fri vs 40h target).",
+          "• `/summary-components` — Shows your weekly summary grouped by Jira component.",
+          "• `/submit [lun|mar|mie|jue|vie]` — Requests a time entry for a specific day of the current week (default: today).",
+          "• `/refresh-tickets` — Refreshes the Jira ticket cache for typeahead search.",
+          "• `/help` — Shows this help message.",
         ].join("\n"),
       },
     },
@@ -433,7 +432,7 @@ export function buildHelpMessage(): SlackBlock[] {
       type: "section",
       text: {
         type: "mrkdwn",
-        text: "_Solo tú puedes ver este mensaje._",
+        text: "_Only you can see this message._",
       },
     },
   ];

@@ -69,13 +69,13 @@ export async function handleSlackInteraction(
     return new Response(
       JSON.stringify({
         replace_original: true,
-        text: "⏳ Procesando carga de horas...",
+        text: "⏳ Processing time entry...",
         blocks: [
           {
             type: "section",
             text: {
               type: "mrkdwn",
-              text: "⏳ *Procesando carga de horas...* Por favor espera.",
+              text: "⏳ *Processing time entry...* Please wait.",
             },
           },
         ],
@@ -113,7 +113,7 @@ async function processSubmitHours(payload: SlackInteractionPayload, env: Env): P
     const action = payload.actions?.[0];
     const targetDate = action?.value;
     if (!targetDate || !/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
-      await sendError(responseUrl, "⚠️ Fecha objetivo inválida. Por favor intenta de nuevo.");
+      await sendError(responseUrl, "⚠️ Invalid target date. Please try again.");
       return;
     }
 
@@ -127,11 +127,11 @@ async function processSubmitHours(payload: SlackInteractionPayload, env: Env): P
             type: "section",
             text: {
               type: "mrkdwn",
-              text: `⛔ *Período expirado.* Este mensaje era para el *${targetDate}* y ya no pertenece a la semana calendario actual.\nLas horas deben cargarse directamente en Jira.`,
+              text: `⛔ *Expired period.* This message was for *${targetDate}* and no longer belongs to the current calendar week.\nHours must be logged directly in Jira.`,
             },
           },
         ],
-        `Período expirado. Este mensaje era para el ${targetDate}.`,
+        `Expired period. This message was for ${targetDate}.`,
         true,
       );
       return;
@@ -140,7 +140,7 @@ async function processSubmitHours(payload: SlackInteractionPayload, env: Env): P
     // ── 3. Parse slots dynamically from state ──
     const state = payload.state?.values;
     if (!state) {
-      await sendError(responseUrl, "No se encontraron selecciones. Por favor intenta de nuevo.");
+      await sendError(responseUrl, "No selections found. Please try again.");
       return;
     }
 
@@ -161,7 +161,7 @@ async function processSubmitHours(payload: SlackInteractionPayload, env: Env): P
         if (ticketKey === "none" || isNaN(hours) || hours <= 0) {
           await sendError(
             responseUrl,
-            `⚠️ Ranura ${i + 1}: selección inválida. Por favor revisa y vuelve a intentar.`,
+            `⚠️ Slot ${i + 1}: invalid selection. Please review and try again.`,
           );
           return;
         }
@@ -178,7 +178,7 @@ async function processSubmitHours(payload: SlackInteractionPayload, env: Env): P
       const slotList = partialSlots.join(", ");
       await sendError(
         responseUrl,
-        `⚠️ La(s) ranura(s) *${slotList}* tiene(n) datos incompletos. Debes seleccionar *ticket y horas* en cada ranura que uses, o dejar ambas vacías.`,
+        `⚠️ Slot(s) *${slotList}* have incomplete data. You must select *ticket and hours* for each slot you use, or leave both empty.`,
       );
       return;
     }
@@ -187,7 +187,7 @@ async function processSubmitHours(payload: SlackInteractionPayload, env: Env): P
     if (validSlots.length === 0) {
       await sendError(
         responseUrl,
-        "⚠️ No seleccionaste ningún ticket ni horas. Completa al menos una ranura.",
+        "⚠️ You didn't select any ticket or hours. Fill in at least one slot.",
       );
       return;
     }
@@ -196,10 +196,7 @@ async function processSubmitHours(payload: SlackInteractionPayload, env: Env): P
     const ticketKeys = validSlots.map((s) => s.ticketKey);
     const uniqueKeys = new Set(ticketKeys);
     if (uniqueKeys.size !== ticketKeys.length) {
-      await sendError(
-        responseUrl,
-        "⚠️ No puedes seleccionar el mismo ticket en más de una ranura.",
-      );
+      await sendError(responseUrl, "⚠️ You can't select the same ticket in more than one slot.");
       return;
     }
 
@@ -208,7 +205,7 @@ async function processSubmitHours(payload: SlackInteractionPayload, env: Env): P
     if (submittedTotal > config.tracking.dailyTarget) {
       await sendError(
         responseUrl,
-        `⚠️ El total enviado (*${submittedTotal.toFixed(1)}h*) supera el límite diario de ${config.tracking.dailyTarget}h.`,
+        `⚠️ The submitted total (*${submittedTotal.toFixed(1)}h*) exceeds the daily limit of ${config.tracking.dailyTarget}h.`,
       );
       return;
     }
@@ -219,10 +216,7 @@ async function processSubmitHours(payload: SlackInteractionPayload, env: Env): P
     const userEmails = Object.keys(users);
     const userEmail = await resolveEmailFromSlackId(env, slackUserId, userEmails);
     if (!userEmail) {
-      await sendError(
-        responseUrl,
-        "⚠️ No se pudo identificar tu usuario. Contacta al administrador.",
-      );
+      await sendError(responseUrl, "⚠️ Could not identify your user. Contact the administrator.");
       return;
     }
 
@@ -252,14 +246,14 @@ async function processSubmitHours(payload: SlackInteractionPayload, env: Env): P
         type: "section" as const,
         text: {
           type: "mrkdwn" as const,
-          text: `⚠️ *Datos desactualizados.* Ya tienes *${currentTotal.toFixed(1)}h* cargadas para el ${targetDate}. Solo puedes agregar *${remaining.toFixed(1)}h* más.\n_Se ha actualizado el mensaje con tu saldo real._`,
+          text: `⚠️ *Stale data.* You already have *${currentTotal.toFixed(1)}h* logged for ${targetDate}. You can only add *${remaining.toFixed(1)}h* more.\n_The message has been updated with your current balance._`,
         },
       };
 
       await updateMessageViaResponseUrl(
         responseUrl,
         [warningBlock, { type: "divider" }, ...freshBlocks],
-        `Datos desactualizados. Ya tienes ${currentTotal.toFixed(1)}h. Solo puedes agregar ${remaining.toFixed(1)}h más.`,
+        `Stale data. You already have ${currentTotal.toFixed(1)}h. You can only add ${remaining.toFixed(1)}h more.`,
         true,
       );
       return;
@@ -282,7 +276,7 @@ async function processSubmitHours(payload: SlackInteractionPayload, env: Env): P
     if (succeeded.length === 0) {
       await sendError(
         responseUrl,
-        "❌ Error al cargar horas en Jira. Por favor intenta de nuevo o carga manualmente.",
+        "❌ Failed to log hours in Jira. Please try again or log manually.",
       );
       return;
     }
@@ -309,7 +303,7 @@ async function processSubmitHours(payload: SlackInteractionPayload, env: Env): P
     const updatedSummary = updatedSummaries.get(userEmail.toLowerCase());
 
     if (!updatedSummary) {
-      await sendError(responseUrl, "✅ Horas cargadas, pero no se pudo actualizar el resumen.");
+      await sendError(responseUrl, "✅ Hours logged, but the summary could not be updated.");
       return;
     }
 
@@ -325,14 +319,14 @@ async function processSubmitHours(payload: SlackInteractionPayload, env: Env): P
         type: "section",
         text: {
           type: "mrkdwn",
-          text: `⚠️ No se pudieron cargar horas en: ${failed.map((k) => `\`${k}\``).join(", ")}. Cárgalas manualmente en Jira.`,
+          text: `⚠️ Failed to log hours for: ${failed.map((k) => `\`${k}\``).join(", ")}. Log them manually in Jira.`,
         },
       });
     }
 
     if (updatedSummary.totalHours < config.tracking.dailyTarget) {
       const followUpBlocks = buildDailyMessage(updatedSummary, config, targetDate, jiraConfig);
-      const followUpText = `Te faltan ${(config.tracking.dailyTarget - updatedSummary.totalHours).toFixed(1)}h para completar tu día.`;
+      const followUpText = `You have ${(config.tracking.dailyTarget - updatedSummary.totalHours).toFixed(1)}h left to complete your day.`;
       const followUpSent = await sendDirectMessage(env, slackUserId, followUpBlocks, followUpText);
 
       if (!followUpSent) {
@@ -340,7 +334,7 @@ async function processSubmitHours(payload: SlackInteractionPayload, env: Env): P
           type: "section",
           text: {
             type: "mrkdwn",
-            text: "⚠️ No se pudo enviar el nuevo mensaje para seguir cargando horas.",
+            text: "⚠️ Could not send a follow-up message to continue logging hours.",
           },
         });
       }
@@ -350,12 +344,12 @@ async function processSubmitHours(payload: SlackInteractionPayload, env: Env): P
     await updateMessageViaResponseUrl(
       responseUrl,
       confirmBlocks,
-      `✅ ${totalAdded.toFixed(1)}h cargadas en ${succeeded.length} ticket(s). Total: ${updatedSummary.totalHours.toFixed(1)}h`,
+      `✅ ${totalAdded.toFixed(1)}h logged across ${succeeded.length} ticket(s). Total: ${updatedSummary.totalHours.toFixed(1)}h`,
       true,
     );
   } catch (err) {
     console.error("Error processing submit_hours:", err);
-    await sendError(responseUrl, "❌ Ocurrió un error inesperado. Por favor intenta de nuevo.");
+    await sendError(responseUrl, "❌ An unexpected error occurred. Please try again.");
   }
 }
 
@@ -376,7 +370,7 @@ async function processAddSlot(payload: SlackInteractionPayload, env: Env): Promi
 
     const currentSlotCount = parseInt(slotCountStr, 10);
     if (isNaN(currentSlotCount) || !targetDate) {
-      await sendError(responseUrl, "⚠️ Error al agregar ranura. Por favor intenta de nuevo.");
+      await sendError(responseUrl, "⚠️ Error adding slot. Please try again.");
       return;
     }
 
@@ -401,10 +395,7 @@ async function processAddSlot(payload: SlackInteractionPayload, env: Env): Promi
     const userEmail = await resolveEmailFromSlackId(env, slackUserId, userEmails);
 
     if (!userEmail) {
-      await sendError(
-        responseUrl,
-        "⚠️ No se pudo identificar tu usuario. Contacta al administrador.",
-      );
+      await sendError(responseUrl, "⚠️ Could not identify your user. Contact the administrator.");
       return;
     }
 
@@ -415,7 +406,7 @@ async function processAddSlot(payload: SlackInteractionPayload, env: Env): Promi
     const summary = summaries.get(userEmail.toLowerCase());
 
     if (!summary) {
-      await sendError(responseUrl, "⚠️ No se encontraron datos. Intenta de nuevo.");
+      await sendError(responseUrl, "⚠️ No data found. Please try again.");
       return;
     }
 
@@ -433,15 +424,12 @@ async function processAddSlot(payload: SlackInteractionPayload, env: Env): Promi
     await updateMessageViaResponseUrl(
       responseUrl,
       freshBlocks,
-      `Agregada ranura ${newSlotCount}. Total: ${summary.totalHours.toFixed(1)}h`,
+      `Slot ${newSlotCount} added. Total: ${summary.totalHours.toFixed(1)}h`,
       true,
     );
   } catch (err) {
     console.error("Error processing add_slot:", err);
-    await sendError(
-      responseUrl,
-      "❌ Ocurrió un error al agregar la ranura. Por favor intenta de nuevo.",
-    );
+    await sendError(responseUrl, "❌ An error occurred while adding the slot. Please try again.");
   }
 }
 

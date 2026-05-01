@@ -151,7 +151,7 @@ describe("buildDailyMessage", () => {
     const blocks = buildDailyMessage(summary, config, "2026-04-08", jiraConfig);
 
     const greetingBlock = blocks.find(
-      (b) => b.text?.type === "mrkdwn" && b.text.text.includes("Hola"),
+      (b) => b.text?.type === "mrkdwn" && b.text.text.includes("Hey"),
     );
     expect(greetingBlock).toBeDefined();
     expect(greetingBlock!.text!.text).toContain("Carlos");
@@ -199,7 +199,7 @@ describe("buildWeeklyMessage", () => {
     // Should have header
     const header = blocks.find((b) => b.type === "header");
     expect(header).toBeDefined();
-    expect(header!.text!.text).toContain("Semanal");
+    expect(header!.text!.text).toContain("Weekly Summary");
 
     // Should show the weekly total
     const statusBlock = blocks.find((b) => b.text?.text?.includes("32.0h"));
@@ -248,7 +248,7 @@ describe("buildConfirmationMessage", () => {
 
     expect(blocks.length).toBeGreaterThan(0);
 
-    const confirmBlock = blocks.find((b) => b.text?.text?.includes("exitosamente"));
+    const confirmBlock = blocks.find((b) => b.text?.text?.includes("successfully"));
     expect(confirmBlock).toBeDefined();
     expect(confirmBlock!.text!.text).toContain("TEST-100");
     expect(confirmBlock!.text!.text).toContain("TEST-200");
@@ -282,7 +282,7 @@ describe("buildConfirmationMessage", () => {
 
     const blocks = buildConfirmationMessage(entries, updatedSummary, 8);
 
-    const remainingBlock = blocks.find((b) => b.text?.text?.includes("Aún te faltan"));
+    const remainingBlock = blocks.find((b) => b.text?.text?.includes("You still have"));
     expect(remainingBlock).toBeUndefined();
   });
 });
@@ -304,14 +304,14 @@ describe("buildDailyMessage with dateLabel", () => {
       jiraConfig,
       undefined,
       undefined,
-      "jueves 9 de abril de 2026",
+      "Thursday, April 9, 2026",
     );
 
     const greetingBlock = blocks.find(
-      (b) => b.text?.type === "mrkdwn" && b.text.text.includes("Hola"),
+      (b) => b.text?.type === "mrkdwn" && b.text.text.includes("Hey"),
     );
     expect(greetingBlock).toBeDefined();
-    expect(greetingBlock!.text!.text).toContain("jueves 9 de abril de 2026");
+    expect(greetingBlock!.text!.text).toContain("Thursday, April 9, 2026");
     expect(greetingBlock!.text!.text).toContain("📅");
   });
 
@@ -327,7 +327,7 @@ describe("buildDailyMessage with dateLabel", () => {
     const blocks = buildDailyMessage(summary, config, "2026-04-09", jiraConfig);
 
     const greetingBlock = blocks.find(
-      (b) => b.text?.type === "mrkdwn" && b.text.text.includes("Hola"),
+      (b) => b.text?.type === "mrkdwn" && b.text.text.includes("Hey"),
     );
     expect(greetingBlock).toBeDefined();
     expect(greetingBlock!.text!.text).not.toContain("📅");
@@ -349,7 +349,7 @@ describe("buildWeeklyByComponentMessage", () => {
 
     const header = blocks.find((b) => b.type === "header");
     expect(header).toBeDefined();
-    expect(header!.text!.text).toContain("Componente");
+    expect(header!.text!.text).toContain("Component");
 
     const greeting = blocks.find((b) => b.text?.text?.includes("Juan Pérez"));
     expect(greeting).toBeDefined();
@@ -366,7 +366,7 @@ describe("buildWeeklyByComponentMessage", () => {
 
     const blocks = buildWeeklyByComponentMessage(breakdown, config, weekMonday, weekFriday);
 
-    const emptyBlock = blocks.find((b) => b.text?.text?.includes("No hay horas"));
+    const emptyBlock = blocks.find((b) => b.text?.text?.includes("No hours"));
     expect(emptyBlock).toBeDefined();
   });
 
@@ -487,10 +487,10 @@ describe("buildHelpMessage", () => {
     expect(blocks.length).toBeGreaterThan(0);
   });
 
-  it("first block is a header containing 'Ayuda'", () => {
+  it("first block is a header containing 'Help'", () => {
     const blocks = buildHelpMessage();
     expect(blocks[0].type).toBe("header");
-    expect(blocks[0].text?.text).toContain("Ayuda");
+    expect(blocks[0].text?.text).toContain("Help");
   });
 
   it("contains a divider block", () => {

@@ -133,7 +133,7 @@ describe("handleSlackInteraction", () => {
       blocks: unknown[];
     };
     expect(body.replace_original).toBe(true);
-    expect(body.text).toContain("Procesando");
+    expect(body.text).toContain("Processing");
     expect(Array.isArray(body.blocks)).toBe(true);
     expect(body.blocks.length).toBeGreaterThan(0);
 

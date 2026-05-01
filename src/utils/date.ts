@@ -84,7 +84,7 @@ export function dateStringToEpochMs(dateStr: string): number {
   return new Date(dateStr + "T00:00:00Z").getTime();
 }
 
-// ─── Spanish day abbreviation helpers ───
+// ─── Day abbreviation helpers ───
 
 const SPANISH_DAY_MAP: Record<string, number> = {
   lun: 1,
@@ -94,22 +94,22 @@ const SPANISH_DAY_MAP: Record<string, number> = {
   vie: 5,
 };
 
-const MONTHS_ES = [
-  "enero",
-  "febrero",
-  "marzo",
-  "abril",
-  "mayo",
-  "junio",
-  "julio",
-  "agosto",
-  "septiembre",
-  "octubre",
-  "noviembre",
-  "diciembre",
+const MONTHS_EN = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
 ];
 
-const DAYS_ES = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+const DAYS_EN = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 /**
  * Maps a Spanish day abbreviation to ISO day of week (1=Mon … 5=Fri).
@@ -145,15 +145,15 @@ export function getDayOfWeekET(dateStr: string): number {
 }
 
 /**
- * Formats a yyyy-MM-dd string as a Spanish long-form date.
- * Example: "2026-04-10" → "viernes 10 de abril de 2026"
+ * Formats a yyyy-MM-dd string as a long-form date.
+ * Example: "2026-04-10" → "Friday, April 10, 2026"
  */
-export function formatDateSpanishLong(dateStr: string): string {
+export function formatDateLong(dateStr: string): string {
   const [y, m, d] = dateStr.split("-").map(Number);
   const date = new Date(y, m - 1, d);
-  const dayName = DAYS_ES[date.getDay()];
-  const monthName = MONTHS_ES[m - 1];
-  return `${dayName} ${d} de ${monthName} de ${y}`;
+  const dayName = DAYS_EN[date.getDay()];
+  const monthName = MONTHS_EN[m - 1];
+  return `${dayName}, ${monthName} ${d}, ${y}`;
 }
 
 /**

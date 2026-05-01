@@ -5,7 +5,7 @@ import {
   getCurrentHourET,
   isFriday,
   getWeekBoundaries,
-  formatDateSpanishLong,
+  formatDateLong,
 } from "../utils/date.ts";
 import {
   buildAccountIdEmailMap,
@@ -39,7 +39,7 @@ export async function handleScheduledSummary(env: Env): Promise<void> {
   console.log("⏱️ Starting daily hours check...");
 
   const today = getTodayET();
-  const dateLabel = formatDateSpanishLong(today);
+  const dateLabel = formatDateLong(today);
   const friday = isFriday(new Date());
   const { monday, friday: weekFriday } = getWeekBoundaries(new Date());
 
@@ -106,7 +106,7 @@ export async function handleScheduledSummary(env: Env): Promise<void> {
       );
     }
 
-    const fallbackText = `Reporte de horas: ${dailySummary.totalHours.toFixed(1)}h / ${config.tracking.dailyTarget}h`;
+    const fallbackText = `Hours report: ${dailySummary.totalHours.toFixed(1)}h / ${config.tracking.dailyTarget}h`;
     const sent = await sendDirectMessage(env, slackUserId, blocks, fallbackText);
 
     if (sent) {
