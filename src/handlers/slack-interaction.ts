@@ -1,6 +1,5 @@
 import type {
   Env,
-  JiraConfig,
   JiraUsers,
   SlackInteractionPayload,
   SlotEntry,
@@ -9,6 +8,7 @@ import type {
 import { verifySlackSignature } from "../utils/crypto.ts";
 import { getTodayET, isSameCalendarWeek } from "../utils/date.ts";
 import { loadConfig } from "../../config/config.ts";
+import { JIRA_CONFIG as jiraConfig } from "../../config/jira-config.ts";
 import { buildAccountIdEmailMap, postWorklog, searchTicketsForUser } from "../services/jira.ts";
 import {
   sendDirectMessage,
@@ -227,7 +227,6 @@ async function processSubmitHours(payload: SlackInteractionPayload, env: Env): P
     }
 
     // ── 9. Fetch fresh Jira data (stale-data guard) ──
-    const jiraConfig = JSON.parse(env.JIRA_CONFIG) as JiraConfig;
     const issues = await searchTicketsForUser(env, userEmail);
     const accountEmailMap = await buildAccountIdEmailMap(env, issues);
     const summaries = aggregateUserHours(issues, accountEmailMap, targetDate, [userEmail]);
@@ -394,7 +393,6 @@ async function processAddSlot(payload: SlackInteractionPayload, env: Env): Promi
     }
 
     // Resolve user to get fresh summary
-    const jiraConfig = JSON.parse(env.JIRA_CONFIG) as JiraConfig;
     const users = JSON.parse(env.USERS) as JiraUsers;
     const userEmails = Object.keys(users);
     const slackUserId = payload.user.id;

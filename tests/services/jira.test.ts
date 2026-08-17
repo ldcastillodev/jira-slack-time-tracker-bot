@@ -11,6 +11,9 @@ import {
 import { createMockEnv, createMockJiraTicket, mockJsonResponse } from "../setup.ts";
 import type { Env, JiraSearchResponse } from "../../src/types/index.ts";
 import { CACHE_KEY_ALL_TICKETS } from "../../src/constants/constants.ts";
+import { JIRA_CONFIG } from "../../config/jira-config.ts";
+
+const [FIRST_GENERIC_TICKET] = JIRA_CONFIG.jira.genericTickets;
 
 describe("jira service", () => {
   let env: Env;
@@ -511,10 +514,10 @@ describe("jira service", () => {
         summary: string;
       }>;
       const keys = cachedTickets.map((t) => t.key);
-      // Generic ticket from config (TEST-1) should come first
-      expect(keys).toContain("TEST-1");
+      // Generic ticket from config should come first
+      expect(keys).toContain(FIRST_GENERIC_TICKET.key);
       expect(keys).toContain("TEST-99");
-      expect(keys.indexOf("TEST-1")).toBeLessThan(keys.indexOf("TEST-99"));
+      expect(keys.indexOf(FIRST_GENERIC_TICKET.key)).toBeLessThan(keys.indexOf("TEST-99"));
     });
 
     it("deduplicates tickets (generic ticket key that also appears in project issues)", async () => {
@@ -527,14 +530,14 @@ describe("jira service", () => {
       };
       const envWithKV = createMockEnv({ CACHE: mockKV as unknown as KVNamespace });
 
-      // The env has genericTickets: [{ key: "TEST-1", summary: "Generic Ticket 1" }]
-      // Return TEST-1 also as a project issue — it should only appear once in cache
+      // The config's first generic ticket also appears as a project issue —
+      // it should only appear once in cache.
       const mockResponse: JiraSearchResponse = {
         issues: [
           {
-            key: "TEST-1",
+            key: FIRST_GENERIC_TICKET.key,
             fields: {
-              summary: "Generic Ticket 1",
+              summary: FIRST_GENERIC_TICKET.summary,
               status: { name: "In Progress" },
               assignee: null,
               worklog: { total: 0, maxResults: 20, worklogs: [] },
@@ -549,8 +552,8 @@ describe("jira service", () => {
       const putCall = mockKV.put.mock.calls[0];
       const cachedTickets = JSON.parse(putCall[1] as string) as Array<{ key: string }>;
       const keys = cachedTickets.map((t) => t.key);
-      // TEST-1 should appear exactly once
-      expect(keys.filter((k) => k === "TEST-1")).toHaveLength(1);
+      // The generic ticket's key should appear exactly once
+      expect(keys.filter((k) => k === FIRST_GENERIC_TICKET.key)).toHaveLength(1);
     });
 
     it("handles fetch errors without throwing", async () => {

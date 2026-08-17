@@ -2,6 +2,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { handleSlackOptions } from "../../src/handlers/slack-options.ts";
 import { createMockEnv, createSignedSlackRequest } from "../setup.ts";
 import type { Env, CachedTicket } from "../../src/types/index.ts";
+import { JIRA_CONFIG } from "../../config/jira-config.ts";
+
+const [FIRST_GENERIC_TICKET] = JIRA_CONFIG.jira.genericTickets;
 
 describe("handleSlackOptions", () => {
   let env: Env;
@@ -155,7 +158,7 @@ describe("handleSlackOptions", () => {
 
   it("separates generic and project tickets into groups", async () => {
     const cachedTickets: CachedTicket[] = [
-      { key: "TEST-1", summary: "Generic Ticket 1" }, // generic (matches config)
+      { ...FIRST_GENERIC_TICKET }, // generic (matches config)
       { key: "TEST-100", summary: "Project Feature" }, // project
     ];
 

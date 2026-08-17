@@ -38,11 +38,10 @@ Pre-commit hook (`.husky/pre-commit`) runs format → lint-staged → test → c
 - **utils/** — `crypto.ts` (Slack signature HMAC), `date.ts` (all ET-timezone date math).
 - **config/** — `config.ts` loads/validates `tracker-config.json` (the only non-secret, in-repo config).
 
-### Three separate config sources — do not confuse them
+### Two separate config sources — do not confuse them
 
-1. **`config/tracker-config.json`** (in repo, via `loadConfig()`): targets + timezone (`dailyTarget` 8, `weeklyTarget` 40, `cronHourET` 16).
-2. **`JIRA_CONFIG`** secret (JSON string): `{ jira: { boards, projectComponents, genericTickets } }` — drives the JQL and the typeahead seed list. Parsed with `JSON.parse(env.JIRA_CONFIG)`.
-3. **`USERS`** secret (JSON string): maps `email → that user's personal Jira API token`. This is the linchpin of the auth model (see below).
+1. **In-repo config** (no secrets, checked into git): `config/tracker-config.json` (via `loadConfig()`) holds targets + timezone (`dailyTarget` 8, `weeklyTarget` 40, `cronHourET` 16); `config/jira-config.ts` exports the `JIRA_CONFIG` const — `{ jira: { boards, projectComponents, genericTickets } }` — which drives the JQL and the typeahead seed list. Import it directly (`import { JIRA_CONFIG } from "../../config/jira-config.ts"`); no parsing needed.
+2. **`USERS`** secret (JSON string): maps `email → that user's personal Jira API token`. This is the linchpin of the auth model (see below).
 
 ### Per-user Jira auth (critical)
 
@@ -75,4 +74,4 @@ Every Slack endpoint first calls `verifySlackSignature` (HMAC-SHA256, 5-min repl
 
 ## Local dev
 
-`npm run dev` reads `.env.dev` (gitignored; see `.env.example`). Secrets in prod/test are set via `wrangler secret put <NAME> [--env test]`: `JIRA_API_TOKEN`, `JIRA_USER_EMAIL`, `SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`, `USERS`, `JIRA_CONFIG`. KV namespace IDs live in `wrangler.toml`.
+`npm run dev` reads `.env.dev` (gitignored; see `.env.example`). Secrets in prod/test are set via `wrangler secret put <NAME> [--env test]`: `JIRA_API_TOKEN`, `JIRA_USER_EMAIL`, `SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`, `USERS`. KV namespace IDs live in `wrangler.toml`.

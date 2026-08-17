@@ -1,5 +1,6 @@
-import type { Env, JiraConfig, JiraUsers, SlackBlock } from "../types/index.ts";
+import type { Env, JiraUsers, SlackBlock } from "../types/index.ts";
 import { loadConfig } from "../../config/config.ts";
+import { JIRA_CONFIG as jiraConfig } from "../../config/jira-config.ts";
 import {
   getTodayET,
   getCurrentHourET,
@@ -25,8 +26,6 @@ export async function handleScheduledSummary(env: Env): Promise<void> {
   const currentHourET = getCurrentHourET();
   const users = JSON.parse(env.USERS) as JiraUsers;
   const userEmails = Object.keys(users);
-
-  const jiraConfig = JSON.parse(env.JIRA_CONFIG) as JiraConfig;
 
   // Only execute at the configured hour in ET (handles DST automatically)
   if (currentHourET !== config.tracking.cronHourET) {

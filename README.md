@@ -249,37 +249,46 @@ SLACK_BOT_TOKEN=xoxb-123456-789...
 SLACK_SIGNING_SECRET=abc123def456...
 ```
 
-### 4. Configure boards, users, and tickets
+### 4. Configure targets, boards, and tickets
 
-Edit `config/tracker-config.json`:
+Edit `config/tracker-config.json` for tracking targets:
 
 ```json
 {
-  "jira": {
-    "boards": ["MP", "PROJ2"],
-    "genericTickets": [
-      { "key": "MP-100", "label": "Client requested meetings" },
-      { "key": "MP-101", "label": "Others" }
-    ]
-  },
   "tracking": {
     "dailyTarget": 8,
     "weeklyTarget": 40,
     "timezone": "America/New_York",
     "cronHourET": 16
-  },
-  "users": ["john.doe@applydigital.com", "jane.smith@applydigital.com"]
+  }
 }
 ```
 
-| Field                   | Description                                                          |
-| ----------------------- | -------------------------------------------------------------------- |
-| `jira.boards`           | Jira project keys to search for worklogs                             |
-| `jira.genericTickets`   | Predefined tickets always shown in the dropdown (must exist in Jira) |
-| `tracking.dailyTarget`  | Daily hour goal (default: 8)                                         |
-| `tracking.weeklyTarget` | Weekly hour goal (default: 40)                                       |
-| `tracking.cronHourET`   | ET hour for notifications (default: 16 = 4PM)                        |
-| `users`                 | List of emails to receive notifications                              |
+Edit `config/jira-config.ts` for boards, tracked components, and generic tickets:
+
+```ts
+export const JIRA_CONFIG: JiraConfig = {
+  jira: {
+    boards: ["MP", "PROJ2"],
+    genericTickets: [
+      { key: "MP-100", summary: "Client requested meetings" },
+      { key: "MP-101", summary: "Others" },
+    ],
+    projectComponents: [{ name: "Component A" }],
+  },
+};
+```
+
+The `USERS` secret (see below) maps each tracked user's email to their personal Jira API token — those emails are who receives daily notifications.
+
+| Field                    | Description                                                          |
+| ------------------------ | -------------------------------------------------------------------- |
+| `jira.boards`            | Jira project keys to search for worklogs                             |
+| `jira.projectComponents` | Jira components to scope the daily/weekly JQL search to              |
+| `jira.genericTickets`    | Predefined tickets always shown in the dropdown (must exist in Jira) |
+| `tracking.dailyTarget`   | Daily hour goal (default: 8)                                         |
+| `tracking.weeklyTarget`  | Weekly hour goal (default: 40)                                       |
+| `tracking.cronHourET`    | ET hour for notifications (default: 16 = 4PM)                        |
 
 ### 5. Create KV namespace
 
@@ -351,7 +360,7 @@ In your repo → **Settings** → **Secrets and variables** → **Actions** → 
 Recommended variables and secrets:
 
 - GitHub `Secrets`: only CI/CD credentials, e.g. `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`
-- Cloudflare Worker Secrets: `JIRA_API_TOKEN`, `JIRA_USER_EMAIL`, `SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`, `USERS`, `JIRA_CONFIG`
+- Cloudflare Worker Secrets: `JIRA_API_TOKEN`, `JIRA_USER_EMAIL`, `SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`, `USERS`
 - `wrangler.toml`: non-sensitive, static values, e.g. bindings, cron, and `JIRA_BASE_URL` if not sensitive
 - GitHub `Variables`: only if you need non-sensitive pipeline-only parameters later; not needed today
 
@@ -472,7 +481,6 @@ wrangler secret put JIRA_USER_EMAIL --env test
 wrangler secret put SLACK_BOT_TOKEN --env test
 wrangler secret put SLACK_SIGNING_SECRET --env test
 wrangler secret put USERS --env test
-wrangler secret put JIRA_CONFIG --env test
 
 # 4. Deploy manually (or push to develop)
 wrangler deploy --env test
@@ -551,7 +559,8 @@ jira-time-tracker-bot/
 │   ├── builders/                   # Builder tests
 │   └── integration/                # Router integration tests
 ├── config/
-│   └── tracker-config.json         # Boards, users, tickets, thresholds
+│   ├── tracker-config.json         # Tracking targets and cron hour
+│   └── jira-config.ts              # Boards, project components, generic tickets
 ├── .github/
 │   └── workflows/
 │       ├── pr.yaml                  # CI: lint + test + build on PRs

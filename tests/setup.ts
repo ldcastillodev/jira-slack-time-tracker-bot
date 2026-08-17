@@ -26,13 +26,6 @@ export function createMockEnv(overrides: Partial<Env> = {}): Env {
     JIRA_BASE_URL: "https://test.atlassian.net",
     JIRA_API_TOKEN: "test-jira-token",
     JIRA_USER_EMAIL: "test@example.com",
-    JIRA_CONFIG: JSON.stringify({
-      jira: {
-        boards: ["TEST"],
-        genericTickets: [{ key: "TEST-1", summary: "Generic Ticket 1" }],
-        projectComponents: [{ name: "Component1" }],
-      },
-    }),
     SLACK_BOT_TOKEN: "xoxb-test-token",
     SLACK_SIGNING_SECRET: "test-signing-secret",
     USERS: JSON.stringify({

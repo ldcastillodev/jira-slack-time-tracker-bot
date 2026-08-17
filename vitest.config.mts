@@ -16,13 +16,6 @@ const workersOptions = {
         "user1@example.com": "token1",
         "user2@example.com": "token2",
       }),
-      JIRA_CONFIG: JSON.stringify({
-        jira: {
-          boards: ["TEST"],
-          genericTickets: [{ key: "TEST-1", summary: "Generic Ticket 1" }],
-          projectComponents: [{ name: "Component1" }],
-        },
-      }),
     },
     kvNamespaces: ["CACHE"],
   },

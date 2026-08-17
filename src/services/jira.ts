@@ -6,7 +6,6 @@ import type {
   JiraWorklog,
   JiraRawWorklog,
   JiraWorklogResponse,
-  JiraConfig,
   JiraUsers,
   GenericTicket,
   CachedTicket,
@@ -20,6 +19,7 @@ import {
   TTL_ALL_TICKETS,
 } from "../constants/constants.ts";
 import { getWeekBoundaries } from "../utils/date.ts";
+import { JIRA_CONFIG as jiraConfig } from "../../config/jira-config.ts";
 
 // ─── Helpers ───
 
@@ -44,7 +44,6 @@ function baseHeaders(env: Env, email?: string, token?: string): Record<string, s
  * Uses the v3 POST search endpoint with token-based pagination.
  */
 export async function searchAllTicketsWithWorklogs(env: Env): Promise<JiraTicket[]> {
-  const jiraConfig = JSON.parse(env.JIRA_CONFIG) as JiraConfig;
   const boardList = jiraConfig.jira.boards.map((b) => `"${b}"`).join(", ");
   const componentList = jiraConfig.jira.projectComponents.map((c) => `"${c.name}"`).join(", ");
   // fetch tickets that are in project components, to ensure we get all relevant worklogs for the day.
@@ -108,7 +107,6 @@ export async function searchAllTicketsWithWorklogs(env: Env): Promise<JiraTicket
  * Uses the v3 POST search endpoint with token-based pagination.
  */
 export async function searchAllTickets(env: Env): Promise<GenericTicket[]> {
-  const jiraConfig = JSON.parse(env.JIRA_CONFIG) as JiraConfig;
   const boardList = jiraConfig.jira.boards.map((b) => `"${b}"`).join(", ");
   const componentList = jiraConfig.jira.projectComponents.map((c) => `"${c.name}"`).join(", ");
   // fetch tickets that are in project components, to ensure we get all relevant worklogs for the day.
@@ -159,7 +157,6 @@ export async function searchAllTickets(env: Env): Promise<GenericTicket[]> {
 }
 
 export async function searchTicketsForUser(env: Env, email: string): Promise<JiraTicket[]> {
-  const jiraConfig = JSON.parse(env.JIRA_CONFIG) as JiraConfig;
   const boardList = jiraConfig.jira.boards.map((b) => `"${b}"`).join(", ");
   const componentList = jiraConfig.jira.projectComponents.map((c) => `"${c.name}"`).join(", ");
   const users = JSON.parse(env.USERS) as JiraUsers;
@@ -334,7 +331,6 @@ export async function fetchTicketSummary(env: Env, ticketKey: string): Promise<s
 }
 
 export async function refreshJiraTicketsCache(env: Env): Promise<void> {
-  const jiraConfig = JSON.parse(env.JIRA_CONFIG) as JiraConfig;
   console.log("⏱️ Starting tickets refresh...");
   const issues = await searchAllTickets(env);
   console.log(`Fetched ${issues.length} issues with worklogs`);
