@@ -1,11 +1,6 @@
-import type {
-  Env,
-  JiraUsers,
-  JiraConfig,
-  SlackCommandPayload,
-  SlackBlock,
-} from "../types/index.ts";
+import type { Env, JiraUsers, SlackCommandPayload, SlackBlock } from "../types/index.ts";
 import { verifySlackSignature } from "../utils/crypto.ts";
+import { JIRA_CONFIG as jiraConfig } from "../../config/jira-config.ts";
 import {
   getWeekBoundaries,
   getTodayET,
@@ -325,7 +320,6 @@ async function processDailySummaryCommand(
     }
 
     const config = loadConfig();
-    const jiraConfig = JSON.parse(env.JIRA_CONFIG) as JiraConfig;
 
     const issues = await searchTicketsForUser(env, userEmail);
     const accountEmailMap = await buildAccountIdEmailMap(env, issues);

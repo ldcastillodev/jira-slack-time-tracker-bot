@@ -10,6 +10,9 @@ import {
   mockJsonResponse,
 } from "../setup.ts";
 import type { Env } from "../../src/types/index.ts";
+import { JIRA_CONFIG } from "../../config/jira-config.ts";
+
+const [FIRST_GENERIC_TICKET] = JIRA_CONFIG.jira.genericTickets;
 
 const SIGNING_SECRET = "test-signing-secret";
 const USER_SLACK_ID = "U12345";
@@ -467,7 +470,9 @@ describe("handleSlackCommand", () => {
 
       // Both generic and project tickets cached
       const cached = JSON.parse(jsonValue) as Array<{ key: string; summary: string }>;
-      expect(cached).toContainEqual({ key: "TEST-1", summary: "Generic Ticket 1" });
+      for (const generic of JIRA_CONFIG.jira.genericTickets) {
+        expect(cached).toContainEqual(generic);
+      }
       expect(cached).toContainEqual({ key: "PROJ-1", summary: "Issue One" });
 
       // Success block posted to response_url
@@ -485,7 +490,7 @@ describe("handleSlackCommand", () => {
         mockJsonResponse({
           issues: [
             {
-              key: "TEST-1",
+              key: FIRST_GENERIC_TICKET.key,
               fields: {
                 summary: "Duplicate Generic",
                 status: { name: "Open" },
@@ -503,9 +508,9 @@ describe("handleSlackCommand", () => {
       const { capturedPromise } = await issueRequest();
       await capturedPromise;
 
-      // TEST-1 should appear exactly once (generic takes priority)
+      // The generic ticket's key should appear exactly once (generic takes priority)
       const cached = JSON.parse(kvPut.mock.calls[0][1] as string) as Array<{ key: string }>;
-      expect(cached.filter((t) => t.key === "TEST-1")).toHaveLength(1);
+      expect(cached.filter((t) => t.key === FIRST_GENERIC_TICKET.key)).toHaveLength(1);
     });
 
     it("caches only generic tickets when Jira returns no issues", async () => {
@@ -519,7 +524,7 @@ describe("handleSlackCommand", () => {
         key: string;
         summary: string;
       }>;
-      expect(cached).toEqual([{ key: "TEST-1", summary: "Generic Ticket 1" }]);
+      expect(cached).toEqual(JIRA_CONFIG.jira.genericTickets);
 
       // Still posts success message
       const lastCall = fetchSpy.mock.calls[fetchSpy.mock.calls.length - 1];
@@ -561,7 +566,7 @@ describe("handleSlackCommand", () => {
         key: string;
         summary: string;
       }>;
-      expect(cached).toEqual([{ key: "TEST-1", summary: "Generic Ticket 1" }]);
+      expect(cached).toEqual(JIRA_CONFIG.jira.genericTickets);
 
       // Success message still posted (non-ok is not surfaced as user error)
       const lastCall = fetchSpy.mock.calls[fetchSpy.mock.calls.length - 1];

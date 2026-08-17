@@ -5,7 +5,6 @@ export interface Env {
   JIRA_BASE_URL: string;
   JIRA_API_TOKEN: string;
   JIRA_USER_EMAIL: string;
-  JIRA_CONFIG: string;
   SLACK_BOT_TOKEN: string;
   SLACK_SIGNING_SECRET: string;
   USERS: string;
@@ -20,7 +19,7 @@ export interface GenericTicket {
   summary: string;
 }
 
-interface ProjectComponent {
+export interface ProjectComponent {
   name: string;
 }
 
